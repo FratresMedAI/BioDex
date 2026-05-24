@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Gradio
+.gradio/
+flagged/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Model weights and caches (downloaded on first run)
+*.pt
+*.pth
+*.onnx
+megadetector/
+md_v5a*
+.cache/
+torch_cache/
+
+# Temp exports
+biodex_annotated_*
+biodex_detections_*
+
+# Logs
+*.log
+
+# Test outputs
+outputs/
+results/
