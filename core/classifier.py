@@ -70,43 +70,14 @@ def _parse_species_result(result: dict) -> SpeciesPrediction | None:
     return SpeciesPrediction(label=best_label, confidence=best_score, top3=top3)
 
 
-def classify_detection(
-    image: Image.Image,
-    detection: DetectionRecord,
-    filepath_stub: str,
-) -> SpeciesPrediction | None:
-    """
-    Run SpeciesNet on a single animal detection crop.
+def _preprocess_for_detection(image: Image.Image, detection: DetectionRecord):
+    """Preprocess one animal detection for SpeciesNet batch inference."""
+    from speciesnet.utils import BBox
 
-    Args:
-        image: Full original PIL image.
-        detection: Animal detection record with normalized bbox.
-        filepath_stub: Identifier used by SpeciesNet for result keys.
-
-    Returns:
-        SpeciesPrediction or None if classification failed.
-    """
-    if detection.category_id != ANIMAL_CATEGORY_ID:
-        return None
-
-    try:
-        from speciesnet.utils import BBox
-
-        classifier = get_classifier()
-        xmin, ymin, width, height = detection.bbox
-        bboxes = [BBox(xmin=xmin, ymin=ymin, width=width, height=height)]
-
-        preprocessed = classifier.preprocess(image, bboxes=bboxes)
-        if preprocessed is None:
-            return None
-
-        result = classifier.predict(filepath_stub, preprocessed)
-        return _parse_species_result(result)
-    except Exception:
-        logger.exception(
-            "Species classification failed for detection %s", detection.detection_id
-        )
-        return None
+    classifier = get_classifier()
+    xmin, ymin, width, height = detection.bbox
+    bboxes = [BBox(xmin=xmin, ymin=ymin, width=width, height=height)]
+    return classifier.preprocess(image, bboxes=bboxes)
 
 
 def enrich_with_species(
@@ -117,29 +88,51 @@ def enrich_with_species(
     """
     Attach species predictions to animal detections in-place.
 
+    Uses batch inference when multiple animal crops are present.
+
     Returns:
         Updated detections list and optional warning message.
     """
     warning = ""
 
     try:
-        get_classifier()
+        classifier = get_classifier()
     except RuntimeError as exc:
         return detections, str(exc)
 
-    for detection in detections:
-        if detection.category_id != ANIMAL_CATEGORY_ID:
-            continue
+    animal_detections = [
+        d for d in detections if d.category_id == ANIMAL_CATEGORY_ID
+    ]
+    if not animal_detections:
+        return detections, warning
 
-        stub = f"{filename}#detection_{detection.detection_id}"
-        detection.species = classify_detection(image, detection, stub)
+    stubs = [f"{filename}#detection_{d.detection_id}" for d in animal_detections]
+    preprocessed = []
 
-    classified = sum(
-        1 for d in detections if d.category_id == ANIMAL_CATEGORY_ID and d.species
-    )
-    animal_total = sum(1 for d in detections if d.category_id == ANIMAL_CATEGORY_ID)
+    for detection in animal_detections:
+        try:
+            preprocessed.append(_preprocess_for_detection(image, detection))
+        except Exception:
+            logger.exception(
+                "Species preprocess failed for detection %s",
+                detection.detection_id,
+            )
+            preprocessed.append(None)
 
-    if animal_total and classified == 0:
+    try:
+        results = classifier.batch_predict(stubs, preprocessed)
+    except Exception:
+        logger.exception("SpeciesNet batch_predict failed")
+        return detections, (
+            "Species classification failed during inference. "
+            "Detection results are still available."
+        )
+
+    for detection, result in zip(animal_detections, results):
+        detection.species = _parse_species_result(result)
+
+    classified = sum(1 for d in animal_detections if d.species)
+    if classified == 0:
         warning = (
             "Species classification was enabled but no species predictions were returned. "
             "Try again after SpeciesNet model weights finish downloading."

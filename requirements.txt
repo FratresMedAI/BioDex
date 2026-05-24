@@ -1,5 +1,5 @@
 # BioDex dependencies
-# Python 3.10–3.13 recommended (Gradio 5 requires 3.10+; megadetector supports <3.14)
+# Python 3.10–3.12 recommended (SpeciesNet requires <3.13; Gradio 5 requires 3.10+)
 
 gradio>=5.0
 megadetector>=5.0

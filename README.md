@@ -1,5 +1,7 @@
 # BioDex
 
+![CI](https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml/badge.svg)
+
 **Local AI for wildlife camera trap analysis and biodiversity monitoring.**
 
 BioDex is a privacy-first desktop tool that helps researchers, citizen scientists, and land managers triage camera trap images — detect animals, filter blanks, classify species, draw bounding boxes, and export results. Everything runs on your machine. No cloud API calls during analysis.
@@ -53,6 +55,29 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 ```
 
 CPU-only mode works fine for occasional single-image analysis.
+
+### Development and testing
+
+```powershell
+pip install -r requirements-ci.txt
+pytest tests/ -v
+```
+
+For a full local smoke test with model inference (downloads weights on first run):
+
+```powershell
+pip install -r requirements.txt
+python scripts/smoke_test.py
+python scripts/smoke_test.py --species
+```
+
+### Troubleshooting
+
+**SpeciesNet / MegaDetector protobuf warning:** `megadetector` and `speciesnet` may disagree on `protobuf` versions. If you see install conflicts, try a fresh virtual environment. Detection and species classification both worked in testing despite pip warnings.
+
+**Species labels look wrong:** SpeciesNet accuracy varies by region. Treat species output as a suggestion for expert review.
+
+**Bind to all interfaces (optional):** Set `BIODEX_HOST=0.0.0.0` and `BIODEX_PORT=7860` before running `python app.py`.
 
 ---
 

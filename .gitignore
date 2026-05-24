@@ -61,3 +61,4 @@ biodex_detections_*
 # Test outputs
 outputs/
 results/
+.pytest_cache/

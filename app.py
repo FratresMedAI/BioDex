@@ -7,6 +7,7 @@ All inference runs locally; no cloud API calls during analysis.
 
 from __future__ import annotations
 
+import os
 import traceback
 
 import gradio as gr
@@ -372,4 +373,9 @@ def build_app() -> gr.Blocks:
 
 if __name__ == "__main__":
     app = build_app()
-    app.launch(theme=APP_THEME, css=CUSTOM_CSS)
+    app.launch(
+        server_name=os.getenv("BIODEX_HOST", "127.0.0.1"),
+        server_port=int(os.getenv("BIODEX_PORT", "7860")),
+        theme=APP_THEME,
+        css=CUSTOM_CSS,
+    )
