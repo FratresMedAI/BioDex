@@ -3,6 +3,7 @@
 
 gradio>=5.0
 megadetector>=5.0
+speciesnet>=5.0
 torch>=2.0
 Pillow>=9.5
 numpy>=1.26.4,<2.0
@@ -13,3 +14,5 @@ pandas>=2.1
 #   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 #
 # CPU-only install (default from pip) works fine for occasional single-image analysis.
+#
+# Python 3.10–3.12 recommended (SpeciesNet requires <3.13).

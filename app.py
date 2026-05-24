@@ -1,7 +1,7 @@
 """
-BioDex — Local AI for Wildlife Camera Traps
+BioDex — Local AI for Wildlife Camera Traps (v0.2)
 
-Gradio web UI for single-image MegaDetector v5a analysis.
+Gradio web UI for MegaDetector v5a detection and optional SpeciesNet classification.
 All inference runs locally; no cloud API calls during analysis.
 """
 
@@ -10,25 +10,62 @@ from __future__ import annotations
 import traceback
 
 import gradio as gr
+import pandas as pd
 from PIL import Image
 
-from core.detector import get_category_label, run_detection
-from core.exports import detections_to_csv, save_annotated_image
+from core.detector import run_analysis
+from core.exports import detections_to_csv, export_json, save_annotated_image
+from core.types import BIODEX_VERSION, AnalysisResult
 from core.visualization import draw_detections
 
 CUSTOM_CSS = """
+.biodex-shell {
+    max-width: 1200px;
+    margin: 0 auto;
+}
 .biodex-header {
     text-align: center;
-    margin-bottom: 0.5rem;
+    margin-bottom: 1.25rem;
+    padding: 1.25rem 1rem 0.5rem;
 }
 .biodex-header h1 {
-    margin-bottom: 0.25rem;
+    margin: 0 0 0.35rem 0;
     font-weight: 700;
+    font-size: 2rem;
 }
 .biodex-tagline {
     color: #546E7A;
     font-size: 1.05rem;
-    margin-top: 0;
+    margin: 0.35rem 0 0.75rem;
+}
+.biodex-badge-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.biodex-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.biodex-badge-version {
+    background: #E8F5E9;
+    color: #1B5E20;
+}
+.biodex-badge-privacy {
+    background: #ECEFF1;
+    color: #455A64;
+}
+.biodex-panel {
+    background: #FAFAFA;
+    border: 1px solid #ECEFF1;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 .biodex-footer {
     text-align: center;
@@ -40,68 +77,97 @@ CUSTOM_CSS = """
 }
 .biodex-stat-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
     gap: 0.75rem;
     margin: 1rem 0;
 }
+@media (max-width: 900px) {
+    .biodex-stat-grid {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+    }
+}
 .biodex-stat {
-    background: #F1F8E9;
-    border-radius: 8px;
-    padding: 0.75rem 1rem;
+    background: #FFFFFF;
+    border: 1px solid #E8F5E9;
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
     text-align: center;
+    box-shadow: 0 1px 2px rgba(46, 125, 50, 0.08);
 }
 .biodex-stat-value {
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 700;
     color: #2E7D32;
+    line-height: 1.1;
 }
 .biodex-stat-label {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: #546E7A;
+    margin-top: 0.25rem;
+}
+.biodex-summary {
+    background: #F1F8E9;
+    border-left: 4px solid #2E7D32;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin: 0.75rem 0 1rem;
+    color: #37474F;
 }
 """
 
 HOW_IT_WORKS = """
 ### How BioDex works
 
-BioDex uses **[MegaDetector v5a](https://github.com/agentmorris/MegaDetector)** (MDV5A), a widely used
-open-source object detector trained on millions of camera trap images.
+BioDex runs entirely on your computer. Your images are never uploaded to a cloud API.
 
-**What it detects (3 classes):**
-- **Animal** — wildlife in the frame
-- **Person** — humans (useful for separating human-triggered images)
-- **Vehicle** — cars, trucks, bicycles, etc.
+**Step 1 — Detection (MegaDetector v5a)**  
+[MegaDetector](https://github.com/agentmorris/MegaDetector) finds animals, people, and vehicles in camera trap images and returns bounding boxes with confidence scores.
 
-**Blank images:** MegaDetector does not have a separate "blank" class. An image is treated as a
-**blank** when no animal, person, or vehicle is found above your confidence threshold.
+**Step 2 — Species classification (optional)**  
+When enabled, BioDex crops each animal detection and runs [SpeciesNet](https://github.com/google/cameratrapai) locally to suggest likely species. SpeciesNet covers ~2,000 taxa trained on diverse camera trap data, but accuracy varies by region.
 
-**Privacy:** Images are processed entirely on your machine. The model weights download once on
-first use (~200 MB); after that, analysis works offline.
+**Blank images:** An image is treated as a **blank** when no animal, person, or vehicle passes your confidence threshold.
 
-**Note:** MegaDetector finds *where* animals are — it does not identify species. Species
-classification is on the [roadmap](docs/roadmap.md).
+**First run:** Model weights download once (MegaDetector ~280 MB; SpeciesNet ~100 MB if enabled), then analysis works offline.
 """
 
-
-def _format_top_detections(detections: list, limit: int = 10) -> str:
-    """Build a markdown table of top detections sorted by confidence."""
-    if not detections:
-        return "_No detections above threshold._"
-
-    sorted_dets = sorted(detections, key=lambda d: d.get("conf", 0.0), reverse=True)[:limit]
-    lines = ["| # | Class | Confidence |", "|---|-------|------------|"]
-    for i, det in enumerate(sorted_dets, start=1):
-        label = get_category_label(str(det.get("category", ""))).title()
-        conf = float(det.get("conf", 0.0))
-        lines.append(f"| {i} | {label} | {conf:.3f} |")
-    return "\n".join(lines)
+RESULTS_COLUMNS = [
+    "ID",
+    "Category",
+    "Confidence",
+    "Species",
+    "Species Conf",
+    "BBox",
+]
 
 
-def _format_results_markdown(result) -> str:
-    """Render the results panel as markdown with stat cards and summary."""
+def _format_bbox(bbox: list[float]) -> str:
+    xmin, ymin, width, height = bbox
+    return f"{xmin:.3f},{ymin:.3f},{width:.3f},{height:.3f}"
+
+
+def _build_results_dataframe(result: AnalysisResult) -> pd.DataFrame:
+    rows = []
+    for detection in result.detections:
+        species_label = detection.species.label if detection.species else ""
+        species_conf = (
+            f"{detection.species.confidence:.3f}" if detection.species else ""
+        )
+        rows.append(
+            [
+                detection.detection_id,
+                detection.category.title(),
+                f"{detection.confidence:.3f}",
+                species_label,
+                species_conf,
+                _format_bbox(detection.bbox),
+            ]
+        )
+    return pd.DataFrame(rows, columns=RESULTS_COLUMNS)
+
+
+def _format_stats_markdown(result: AnalysisResult) -> str:
     blank_label = "Yes" if result.is_blank else "No"
-    blank_count = 1 if result.is_blank else 0
-
     return f"""
 <div class="biodex-stat-grid">
   <div class="biodex-stat">
@@ -113,40 +179,30 @@ def _format_results_markdown(result) -> str:
     <div class="biodex-stat-label">Animals</div>
   </div>
   <div class="biodex-stat">
-    <div class="biodex-stat-value">{blank_count}</div>
-    <div class="biodex-stat-label">Blank (0 or 1)</div>
-  </div>
-  <div class="biodex-stat">
     <div class="biodex-stat-value">{result.person_count}</div>
-    <div class="biodex-stat-label">Humans</div>
+    <div class="biodex-stat-label">People</div>
   </div>
   <div class="biodex-stat">
     <div class="biodex-stat-value">{result.vehicle_count}</div>
     <div class="biodex-stat-label">Vehicles</div>
   </div>
+  <div class="biodex-stat">
+    <div class="biodex-stat-value">{blank_label}</div>
+    <div class="biodex-stat-label">Blank image</div>
+  </div>
 </div>
 
-**Blank / no-animal image?** {blank_label}
-
-### Top detections
-
-{_format_top_detections(result.detections)}
-
-### Summary
-
-{result.summary}
+<div class="biodex-summary">{result.summary}</div>
 """
 
 
 def analyze_image(
     image: Image.Image | None,
     threshold: float,
+    classify_species: bool,
 ):
     """
-    Main analysis handler: detect, annotate, and prepare exports.
-
-    Returns tuple for Gradio outputs:
-    original, annotated, results markdown, annotated file, csv file.
+    Main analysis handler: detect, optionally classify species, annotate, export.
     """
     if image is None:
         raise gr.Error("Please upload a camera trap image (JPG or PNG) first.")
@@ -155,32 +211,39 @@ def analyze_image(
         if not isinstance(image, Image.Image):
             image = Image.open(image)
 
-        result = run_detection(image, threshold=threshold)
+        result = run_analysis(
+            image,
+            threshold=threshold,
+            classify_species=classify_species,
+            filename="upload",
+        )
         annotated = draw_detections(image, result.detections)
-        results_md = _format_results_markdown(result)
+        stats_md = _format_stats_markdown(result)
+        results_df = _build_results_dataframe(result)
 
         annotated_path = save_annotated_image(annotated)
-        csv_path = detections_to_csv(
-            result.detections,
-            image_name="upload",
-            threshold=threshold,
-        )
+        csv_path = detections_to_csv(result)
+        json_path = export_json(result)
 
         return (
             image,
             annotated,
-            results_md,
+            stats_md,
+            results_df,
             gr.update(value=annotated_path, visible=True),
             gr.update(value=csv_path, visible=True),
+            gr.update(value=json_path, visible=True),
         )
 
     except gr.Error:
         raise
+    except ValueError as exc:
+        raise gr.Error(str(exc)) from exc
     except Exception as exc:
         tb = traceback.format_exc()
         raise gr.Error(
             f"Analysis failed: {exc}\n\n"
-            "If this is your first run, MegaDetector may still be downloading model weights. "
+            "If this is your first run, model weights may still be downloading. "
             "Check your internet connection and try again.\n\n"
             f"Details:\n```\n{tb}\n```"
         ) from exc
@@ -197,33 +260,56 @@ def build_app() -> gr.Blocks:
     """Construct and return the Gradio Blocks application."""
     with gr.Blocks(title="BioDex") as demo:
         gr.HTML(
-            """
-            <div class="biodex-header">
+            f"""
+            <div class="biodex-shell">
+              <div class="biodex-header">
                 <h1>BioDex — Local AI for Wildlife Camera Traps</h1>
                 <p class="biodex-tagline">
-                    Detect animals, filter blanks, and export results — 100% on your machine.
+                  Detect wildlife, filter blanks, identify species, and export results — 100% on your machine.
                 </p>
+                <div class="biodex-badge-row">
+                  <span class="biodex-badge biodex-badge-version">v{BIODEX_VERSION}</span>
+                  <span class="biodex-badge biodex-badge-privacy">Local only • Privacy-first</span>
+                </div>
+              </div>
             </div>
             """
         )
 
         with gr.Row():
             with gr.Column(scale=1):
-                input_image = gr.Image(
-                    label="Upload camera trap image",
-                    type="pil",
-                    sources=["upload"],
-                    height=360,
+                with gr.Group():
+                    input_image = gr.Image(
+                        label="Upload camera trap image",
+                        type="pil",
+                        sources=["upload"],
+                        height=320,
+                    )
+                    threshold = gr.Slider(
+                        minimum=0.05,
+                        maximum=0.95,
+                        value=0.25,
+                        step=0.05,
+                        label="Confidence threshold",
+                        info="Higher = fewer, more confident detections",
+                    )
+                    classify_species = gr.Checkbox(
+                        value=False,
+                        label="Enable species classification",
+                        info="Runs SpeciesNet on animal crops (~5–15s on CPU; downloads weights on first use)",
+                    )
+                    analyze_btn = gr.Button("Analyze Image", variant="primary", size="lg")
+
+            with gr.Column(scale=1):
+                gr.Markdown(
+                    """
+                    **Workflow**
+                    1. Upload a JPG or PNG camera trap image
+                    2. Adjust confidence threshold
+                    3. Optionally enable species classification
+                    4. Click **Analyze Image** and export results
+                    """
                 )
-                threshold = gr.Slider(
-                    minimum=0.05,
-                    maximum=0.95,
-                    value=0.25,
-                    step=0.05,
-                    label="Confidence threshold",
-                    info="Higher = fewer, more confident detections",
-                )
-                analyze_btn = gr.Button("Analyze Image", variant="primary", size="lg")
 
         with gr.Row():
             with gr.Column():
@@ -231,28 +317,29 @@ def build_app() -> gr.Blocks:
                     label="Original",
                     type="pil",
                     interactive=False,
-                    height=400,
+                    height=420,
                 )
             with gr.Column():
                 annotated_out = gr.Image(
                     label="Annotated detections",
                     type="pil",
                     interactive=False,
-                    height=400,
+                    height=420,
                 )
 
-        results_panel = gr.Markdown(label="Results")
+        stats_panel = gr.Markdown(label="Analysis summary")
+        results_table = gr.Dataframe(
+            headers=RESULTS_COLUMNS,
+            label="Detections",
+            interactive=False,
+            wrap=True,
+        )
 
         gr.Markdown("### Export results")
         with gr.Row():
-            download_image = gr.File(
-                label="Download annotated image (PNG)",
-                visible=False,
-            )
-            download_csv = gr.File(
-                label="Download detections (CSV)",
-                visible=False,
-            )
+            download_image = gr.File(label="Annotated image (PNG)", visible=False)
+            download_csv = gr.File(label="Detections (CSV)", visible=False)
+            download_json = gr.File(label="Results (JSON)", visible=False)
 
         with gr.Accordion("How it works", open=False):
             gr.Markdown(HOW_IT_WORKS)
@@ -267,13 +354,15 @@ def build_app() -> gr.Blocks:
 
         analyze_btn.click(
             fn=analyze_image,
-            inputs=[input_image, threshold],
+            inputs=[input_image, threshold, classify_species],
             outputs=[
                 original_out,
                 annotated_out,
-                results_panel,
+                stats_panel,
+                results_table,
                 download_image,
                 download_csv,
+                download_json,
             ],
             show_progress="full",
         )

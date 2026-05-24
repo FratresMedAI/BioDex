@@ -1,10 +1,10 @@
 # BioDex Roadmap
 
-An honest look at where BioDex is headed after v1. Timelines are approximate — this is an open-source side project built for conservation utility, not enterprise speed.
+An honest look at where BioDex is headed. Timelines are approximate — this is an open-source project built for conservation utility, not enterprise speed.
 
 ---
 
-## v1 — Current release
+## v1 — Foundation (complete)
 
 - [x] Single-image upload and analysis
 - [x] MegaDetector v5a (MDV5A) local detection
@@ -16,19 +16,35 @@ An honest look at where BioDex is headed after v1. Timelines are approximate —
 
 ---
 
-## v0.2 — Species awareness
+## v0.2 — Species awareness (complete)
 
 **Goal:** Move from "something is here" to "what species might this be?"
 
-- Integrate [SpeciesNet](https://github.com/google/cameratrapai) or similar species classifier on top of MegaDetector animal crops
-- Show top-3 species suggestions with confidence scores
-- Option to run detection-only (current behavior) vs. detection + classification
+- [x] Integrate [SpeciesNet](https://github.com/google/cameratrapai) on MegaDetector animal crops
+- [x] Top species suggestions with confidence scores (top-3 stored in exports)
+- [x] Optional detection-only vs. detection + classification toggle
+- [x] Professional PIL visualization with overlap-aware labels
+- [x] JSON export for downstream tools
 
-**Challenge:** Species models are region-specific; we will document geographic limitations clearly.
+**Known limitation:** SpeciesNet is region-dependent; accuracy varies outside its training geography.
 
 ---
 
-## v0.3 — Video and motion
+## v0.3 — Batch processing dashboard
+
+**Goal:** Analyze folders, not just single images.
+
+- Upload or point to a local folder of images
+- Progress bar and per-image results table
+- Filter view: blanks only, animals only, humans present
+- Summary statistics (detection rate, species counts)
+- Bulk export of annotated images and master CSV/JSON
+
+**Challenge:** UI responsiveness on large folders (10k+ images); may need background worker thread.
+
+---
+
+## v0.4 — Video and motion
 
 **Goal:** Support common camera trap video formats.
 
@@ -41,21 +57,19 @@ An honest look at where BioDex is headed after v1. Timelines are approximate —
 
 ---
 
-## v0.4 — Batch processing dashboard
+## v0.5 — Geofencing and workflow exports
 
-**Goal:** Analyze folders, not just single images.
+**Goal:** Improve species accuracy and fit existing conservation pipelines.
 
-- Upload or point to a local folder of images
-- Progress bar and per-image results table
-- Filter view: blanks only, animals only, humans present
-- Summary statistics (detection rate, species counts if v0.2 shipped)
-- Bulk export of annotated images and master CSV
-
-**Challenge:** UI responsiveness on large folders (10k+ images); may need background worker thread.
+- Optional country / region geofencing for SpeciesNet predictions
+- Export to [Wildlife Insights](https://wildlifeinsights.org/) compatible formats
+- Export to [iNaturalist](https://www.inaturalist.org/) observation drafts (manual review required)
+- Timelapse-compatible JSON output (MegaDetector native format)
+- EXIF preservation in exports
 
 ---
 
-## v0.5 — Acoustic monitoring (exploratory)
+## v0.6 — Acoustic monitoring (exploratory)
 
 **Goal:** Extend BioDex beyond camera traps.
 
@@ -64,17 +78,6 @@ An honest look at where BioDex is headed after v1. Timelines are approximate —
 - Sync audio detections with image timestamps for multi-sensor sites
 
 **Status:** Exploratory — depends on model size and local inference feasibility.
-
----
-
-## v0.6 — Export integrations
-
-**Goal:** Fit into existing conservation workflows.
-
-- Export to [Wildlife Insights](https://wildlifeinsights.org/) compatible formats
-- Export to [iNaturalist](https://www.inaturalist.org/) observation drafts (manual review required)
-- Timelapse-compatible JSON output (MegaDetector native format)
-- EXIF preservation in exports
 
 ---
 

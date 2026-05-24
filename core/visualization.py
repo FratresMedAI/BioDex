@@ -1,106 +1,195 @@
 """
-Bounding-box visualization for BioDex detection results.
+Professional bounding-box visualization for BioDex v0.2.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
 
 from PIL import Image, ImageDraw, ImageFont
 
-from core.detector import CATEGORY_MAP, get_category_label
+from core.types import DetectionRecord, bbox_area, bbox_to_pixels
 
-# Conservation-friendly colors per detection class.
+# User-specified conservation palette.
 CATEGORY_COLORS: dict[str, str] = {
     "animal": "#2E7D32",
-    "person": "#1565C0",
-    "vehicle": "#E65100",
+    "person": "#F57C00",
+    "vehicle": "#C62828",
 }
 DEFAULT_COLOR = "#546E7A"
 
-BOX_WIDTH = 3
-LABEL_PADDING = 4
+BOX_OUTLINE_WIDTH = 3
+BOX_FILL_ALPHA = 48
+LABEL_PADDING = 6
+LABEL_GAP = 4
 
 
-def _bbox_to_pixels(
-    bbox: list[float], width: int, height: int
-) -> tuple[int, int, int, int]:
-    """
-    Convert MegaDetector normalized bbox [xmin, ymin, w, h] to pixel coords.
-
-    Returns (x0, y0, x1, y1) clamped to image bounds.
-    """
-    xmin, ymin, box_w, box_h = bbox
-    x0 = int(xmin * width)
-    y0 = int(ymin * height)
-    x1 = int((xmin + box_w) * width)
-    y1 = int((ymin + box_h) * height)
-
-    x0 = max(0, min(x0, width - 1))
-    y0 = max(0, min(y0, height - 1))
-    x1 = max(0, min(x1, width))
-    y1 = max(0, min(y1, height))
-    return x0, y0, x1, y1
+@dataclass
+class _LabelPlacement:
+    x0: int
+    y0: int
+    x1: int
+    y1: int
 
 
-def _color_for_category(category_id: str) -> str:
-    label = get_category_label(category_id)
-    return CATEGORY_COLORS.get(label, DEFAULT_COLOR)
+def _load_font(size: int = 14) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    """Load a readable TrueType font when available, else fall back to default."""
+    candidates = [
+        "arial.ttf",
+        "Arial.ttf",
+        "DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/segoeui.ttf",
+    ]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size=size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
 
 
-def draw_detections(
-    image: Image.Image,
-    detections: list[dict[str, Any]],
-    category_map: dict[str, str] | None = None,
-) -> Image.Image:
+def _hex_to_rgba(hex_color: str, alpha: int) -> tuple[int, int, int, int]:
+    hex_color = hex_color.lstrip("#")
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return r, g, b, alpha
+
+
+def _color_for_category(category: str) -> str:
+    return CATEGORY_COLORS.get(category, DEFAULT_COLOR)
+
+
+def _format_confidence(value: float) -> str:
+    return f"{value * 100:.0f}%"
+
+
+def _label_lines(detection: DetectionRecord) -> list[str]:
+    category_line = f"{detection.category.title()} {_format_confidence(detection.confidence)}"
+    if detection.species and detection.species.label:
+        species_line = (
+            f"{detection.species.label} "
+            f"{_format_confidence(detection.species.confidence)}"
+        )
+        return [category_line, species_line]
+    return [category_line]
+
+
+def _measure_label_block(
+    draw: ImageDraw.ImageDraw,
+    lines: list[str],
+    font: ImageFont.ImageFont,
+) -> tuple[int, int]:
+    max_width = 0
+    total_height = 0
+    for index, line in enumerate(lines):
+        bbox = draw.textbbox((0, 0), line, font=font)
+        line_w = bbox[2] - bbox[0]
+        line_h = bbox[3] - bbox[1]
+        max_width = max(max_width, line_w)
+        total_height += line_h
+        if index < len(lines) - 1:
+            total_height += LABEL_GAP
+    return max_width + LABEL_PADDING * 2, total_height + LABEL_PADDING * 2
+
+
+def _rects_overlap(a: _LabelPlacement, b: _LabelPlacement) -> bool:
+    return not (a.x1 <= b.x0 or a.x0 >= b.x1 or a.y1 <= b.y0 or a.y0 >= b.y1)
+
+
+def _find_label_position(
+    *,
+    box_x0: int,
+    box_y0: int,
+    box_x1: int,
+    box_y1: int,
+    label_w: int,
+    label_h: int,
+    image_w: int,
+    image_h: int,
+    occupied: list[_LabelPlacement],
+) -> _LabelPlacement:
+    """Place label above the box when possible; stack below or inside on collision."""
+    candidates = [
+        (box_x0, box_y0 - label_h),
+        (box_x0, box_y1 + 2),
+        (box_x0, min(box_y1 - label_h, image_h - label_h)),
+        (box_x1 - label_w, box_y0 - label_h),
+    ]
+
+    for x, y in candidates:
+        x = max(0, min(x, image_w - label_w))
+        y = max(0, min(y, image_h - label_h))
+        placement = _LabelPlacement(x, y, x + label_w, y + label_h)
+        if not any(_rects_overlap(placement, other) for other in occupied):
+            return placement
+
+    # Last resort: push downward from the top-left of the box.
+    y = min(box_y0 + 2, image_h - label_h)
+    x = max(0, min(box_x0, image_w - label_w))
+    return _LabelPlacement(x, y, x + label_w, y + label_h)
+
+
+def draw_detections(image: Image.Image, detections: list[DetectionRecord]) -> Image.Image:
     """
     Draw bounding boxes and labels on a copy of the input image.
 
-    Args:
-        image: Original PIL image.
-        detections: Filtered MegaDetector detection dicts.
-        category_map: Optional override for category ID → label mapping.
-
-    Returns:
-        New PIL image with annotations drawn.
+    Large boxes are drawn first; labels avoid overlap via simple placement rules.
     """
-    _ = category_map or CATEGORY_MAP  # reserved for future custom maps
-    annotated = image.copy()
-    if annotated.mode != "RGB":
-        annotated = annotated.convert("RGB")
+    base = image.copy()
+    if base.mode != "RGB":
+        base = base.convert("RGB")
 
-    draw = ImageDraw.Draw(annotated)
-    font = ImageFont.load_default()
-    width, height = annotated.size
+    if not detections:
+        return base
 
-    for detection in detections:
-        bbox = detection.get("bbox")
-        if not bbox or len(bbox) != 4:
+    width, height = base.size
+    overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    overlay_draw = ImageDraw.Draw(overlay)
+    draw = ImageDraw.Draw(base)
+    font = _load_font()
+
+    sorted_detections = sorted(detections, key=lambda d: bbox_area(d.bbox), reverse=True)
+    occupied_labels: list[_LabelPlacement] = []
+
+    for detection in sorted_detections:
+        if len(detection.bbox) != 4:
             continue
 
-        category_id = str(detection.get("category", ""))
-        conf = float(detection.get("conf", 0.0))
-        label_name = get_category_label(category_id).title()
-        label_text = f"{label_name} {conf:.2f}"
-        color = _color_for_category(category_id)
+        color = _color_for_category(detection.category)
+        fill_rgba = _hex_to_rgba(color, BOX_FILL_ALPHA)
+        x0, y0, x1, y1 = bbox_to_pixels(detection.bbox, width, height)
 
-        x0, y0, x1, y1 = _bbox_to_pixels(bbox, width, height)
-        draw.rectangle([x0, y0, x1, y1], outline=color, width=BOX_WIDTH)
+        overlay_draw.rectangle([x0, y0, x1, y1], fill=fill_rgba, outline=None)
+        draw.rectangle([x0, y0, x1, y1], outline=color, width=BOX_OUTLINE_WIDTH)
 
-        # Label background for readability on varied camera-trap backgrounds.
-        text_bbox = draw.textbbox((x0, y0), label_text, font=font)
-        text_w = text_bbox[2] - text_bbox[0]
-        text_h = text_bbox[3] - text_bbox[1]
-        label_y = max(0, y0 - text_h - LABEL_PADDING * 2)
+        lines = _label_lines(detection)
+        label_w, label_h = _measure_label_block(draw, lines, font)
+        placement = _find_label_position(
+            box_x0=x0,
+            box_y0=y0,
+            box_x1=x1,
+            box_y1=y1,
+            label_w=label_w,
+            label_h=label_h,
+            image_w=width,
+            image_h=height,
+            occupied=occupied_labels,
+        )
+        occupied_labels.append(placement)
+
         draw.rectangle(
-            [x0, label_y, x0 + text_w + LABEL_PADDING * 2, label_y + text_h + LABEL_PADDING * 2],
+            [placement.x0, placement.y0, placement.x1, placement.y1],
             fill=color,
         )
-        draw.text(
-            (x0 + LABEL_PADDING, label_y + LABEL_PADDING),
-            label_text,
-            fill="white",
-            font=font,
-        )
 
+        text_y = placement.y0 + LABEL_PADDING
+        for line in lines:
+            draw.text((placement.x0 + LABEL_PADDING, text_y), line, fill="white", font=font)
+            line_bbox = draw.textbbox((0, 0), line, font=font)
+            text_y += (line_bbox[3] - line_bbox[1]) + LABEL_GAP
+
+    annotated = Image.alpha_composite(base.convert("RGBA"), overlay).convert("RGB")
     return annotated
