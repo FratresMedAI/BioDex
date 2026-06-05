@@ -9,9 +9,11 @@ from typing import Any, cast
 
 import pandas as pd
 from core.types import (
+    ANIMAL_CATEGORY_ID,
     BIODEX_VERSION,
     AnalysisResult,
     BatchResult,
+    DetectionRecord,
     format_species_alternatives,
     format_species_display,
 )
@@ -56,7 +58,7 @@ BATCH_COLUMNS = [
 
 FIELD_TABLE_COLUMNS = ["File", "Animals", "Species", "Status"]
 
-FIELD_DETECTION_COLUMNS = ["Category", "Species", "Confidence"]
+FIELD_DETECTION_COLUMNS = ["Category", "Species", "Det. conf"]
 
 
 def load_manifest() -> dict[str, Any]:
@@ -148,7 +150,7 @@ def header_html() -> str:
         <span class="field-title">Field Review</span>
         <span class="field-version">v{BIODEX_VERSION}</span>
       </div>
-      <p class="field-tagline">Process a camera-trap folder · review detections · export field data</p>
+      <p class="field-tagline">Trail camera triage · local only · no cloud upload</p>
     </div>
     """
 
@@ -161,6 +163,81 @@ def footer_html() -> str:
     return '<div class="field-footer">Local inference only · no cloud upload</div>'
 
 
+def _species_status_html(level: str, message: str) -> str:
+    """Compact status pill for SpeciesNet readiness."""
+    return (
+        f'<div class="field-species-pill field-species-{level}">'
+        f'<span class="field-species-pill-label">{message}</span></div>'
+    )
+
+
+def probe_speciesnet(*, active: bool) -> str:
+    """
+    Check whether SpeciesNet can run and return a friendly HTML status line.
+
+    Does not run inference — only verifies install/load readiness.
+    """
+    if not active:
+        return _species_status_html(
+            "off",
+            "Species off — animals detected, no species labels.",
+        )
+    try:
+        import speciesnet  # noqa: F401
+    except ImportError:
+        return _species_status_html(
+            "error",
+            "SpeciesNet not installed — run: pip install -e \".[models,ui]\"",
+        )
+    try:
+        from core.classifier import get_classifier
+
+        get_classifier()
+        return _species_status_html(
+            "ok",
+            "SpeciesNet ready — labels appear on annotations and detection tables.",
+        )
+    except RuntimeError as exc:
+        message = str(exc)
+        lower = message.lower()
+        if any(token in lower for token in ("download", "weights", "first run", "214 mb")):
+            return _species_status_html(
+                "loading",
+                "First run — downloading SpeciesNet weights (~214 MB). Keep this tab open.",
+            )
+        short = message.split("Details:")[0].strip().rstrip(".")
+        return _species_status_html("warn", short or "SpeciesNet could not load.")
+    except Exception as exc:
+        return _species_status_html("warn", f"SpeciesNet check failed: {exc}")
+
+
+def batch_species_status_html(batch: BatchResult) -> str:
+    """Post-batch species summary for the status pill."""
+    if not batch.species_enabled:
+        return probe_speciesnet(active=False)
+
+    if batch.species_counts:
+        ranked = sorted(batch.species_counts.items(), key=lambda item: item[1], reverse=True)[:3]
+        summary = ", ".join(f"{name} ({count})" for name, count in ranked)
+        return _species_status_html("ok", f"Species IDs applied — top: {summary}")
+
+    warnings: list[str] = []
+    for result in batch.results:
+        warnings.extend(result.warnings)
+        if result.species_warning:
+            warnings.append(result.species_warning)
+
+    if warnings:
+        return _species_status_html("warn", warnings[0])
+
+    if batch.animal_count:
+        return _species_status_html(
+            "warn",
+            "Species enabled but no labels returned — weights may still be downloading.",
+        )
+    return probe_speciesnet(active=True)
+
+
 def format_field_batch_summary(batch: BatchResult) -> str:
     """Tight aggregate panel aligned with batch_report.txt."""
     blank_rate = (batch.blank_count / batch.total_images * 100) if batch.total_images else 0.0
@@ -169,6 +246,8 @@ def format_field_batch_summary(batch: BatchResult) -> str:
     if batch.species_counts:
         ranked = sorted(batch.species_counts.items(), key=lambda item: item[1], reverse=True)[:4]
         top_species = ", ".join(f"{name} ({count})" for name, count in ranked)
+    elif batch.species_enabled and batch.animal_count:
+        top_species = "No IDs"
 
     species_row = (
         f'<div class="field-stat field-stat-species"><span class="field-stat-val">{top_species or "—"}</span>'
@@ -178,10 +257,10 @@ def format_field_batch_summary(batch: BatchResult) -> str:
     )
 
     return f"""
-<div class="field-summary">
-  <div class="field-stat"><span class="field-stat-val">{batch.total_images}</span><span class="field-stat-lbl">Images</span></div>
-  <div class="field-stat field-stat-animal"><span class="field-stat-val">{batch.animal_count}</span><span class="field-stat-lbl">Animals</span></div>
-  <div class="field-stat"><span class="field-stat-val">{multi_animal}</span><span class="field-stat-lbl">Multi-animal frames</span></div>
+<div class="field-summary field-summary-active">
+  <div class="field-stat field-stat-primary"><span class="field-stat-val">{batch.total_images}</span><span class="field-stat-lbl">Images</span></div>
+  <div class="field-stat field-stat-animal field-stat-primary"><span class="field-stat-val">{batch.animal_count}</span><span class="field-stat-lbl">Animals</span></div>
+  <div class="field-stat field-stat-primary"><span class="field-stat-val">{multi_animal}</span><span class="field-stat-lbl">Multi-animal</span></div>
   <div class="field-stat"><span class="field-stat-val">{blank_rate:.0f}%</span><span class="field-stat-lbl">Blanks</span></div>
   <div class="field-stat"><span class="field-stat-val">{batch.total_detections}</span><span class="field-stat-lbl">Detections</span></div>
   <div class="field-stat"><span class="field-stat-val">{len(batch.failed)}</span><span class="field-stat-lbl">Failed</span></div>
@@ -194,26 +273,48 @@ def build_field_batch_dataframe(batch: BatchResult) -> pd.DataFrame:
     """Minimal per-image table for field review."""
     rows = []
     for result in batch.results:
+        if result.species_enabled:
+            species_cell = _top_species_for_result(result) or ("—" if result.animal_count else "—")
+        else:
+            species_cell = "off"
         rows.append(
             [
                 result.filename,
                 result.animal_count,
-                _top_species_for_result(result) or "—",
+                species_cell,
                 "Failed" if result.error else ("Blank" if result.is_blank else "OK"),
             ]
         )
     return pd.DataFrame(rows, columns=FIELD_TABLE_COLUMNS)
 
 
+def _species_cell_for_detection(
+    detection: DetectionRecord,
+    *,
+    species_enabled: bool,
+) -> str:
+    """Format species column for one detection row."""
+    if detection.category_id != ANIMAL_CATEGORY_ID:
+        return "—"
+    if not species_enabled:
+        return "off"
+    if detection.species:
+        display = format_species_display(detection.species)
+        return display or detection.species.label or "—"
+    return "No match"
+
+
 def build_minimal_detections_dataframe(result: AnalysisResult) -> pd.DataFrame:
     """Per-frame detection rows for the review panel."""
     rows = []
     for detection in result.detections:
-        species_label = detection.species.label if detection.species else "—"
         rows.append(
             [
                 detection.category.title(),
-                species_label,
+                _species_cell_for_detection(
+                    detection,
+                    species_enabled=result.species_enabled,
+                ),
                 f"{detection.confidence:.2f}",
             ]
         )

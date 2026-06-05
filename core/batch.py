@@ -16,6 +16,20 @@ if TYPE_CHECKING:
 BatchProgressCallback = Callable[[int, int, str], None] | None
 
 
+def _emit_progress(
+    callback: Callable[[int, int, str], None],
+    current: int,
+    total: int,
+    message: str,
+    fraction: float,
+) -> None:
+    """Call batch progress hook; tolerate legacy 3-arg callbacks."""
+    try:
+        callback(current, total, message, fraction)  # type: ignore[misc]
+    except TypeError:
+        callback(current, total, message)
+
+
 def _collect_species_counts(results: list[AnalysisResult]) -> dict[str, int]:
     """Aggregate species labels across a batch (excluding Uncertain)."""
     counts: dict[str, int] = {}
@@ -56,7 +70,29 @@ def run_batch(
 
     for index, (filename, image) in enumerate(images, start=1):
         if progress_callback:
-            progress_callback(index, total, f"Analyzing {filename}…")
+            _emit_progress(
+                progress_callback,
+                index,
+                total,
+                f"[{index}/{total}] {filename}",
+                (index - 1) / total if total else 0.0,
+            )
+
+        def image_progress(
+            message: str,
+            *,
+            idx: int = index,
+            step: float = 0.45,
+        ) -> None:
+            if progress_callback:
+                frac = ((idx - 1) + step) / total if total else 0.0
+                _emit_progress(
+                    progress_callback,
+                    idx,
+                    total,
+                    f"[{idx}/{total}] {message}",
+                    frac,
+                )
 
         try:
             result = analyze_single_image(
@@ -65,8 +101,17 @@ def run_batch(
                 classify_species=classify_species,
                 filename=filename,
                 species_min_confidence=species_min_confidence,
+                progress_callback=image_progress,
             )
             results.append(result)
+            if progress_callback:
+                _emit_progress(
+                    progress_callback,
+                    index,
+                    total,
+                    f"[{index}/{total}] {filename} done",
+                    index / total if total else 1.0,
+                )
         except Exception as exc:
             failed.append((filename, str(exc)))
             results.append(

@@ -308,6 +308,15 @@ def run_detection(image: Image.Image, threshold: float = 0.25) -> AnalysisResult
     return analyze_single_image(image, threshold=threshold, classify_species=False)
 
 
+def warmup_models(*, species: bool = False) -> None:
+    """Eager-load MegaDetector (and optionally SpeciesNet) before the first frame."""
+    get_detector()
+    if species:
+        from core.classifier import get_classifier
+
+        get_classifier()
+
+
 __all__ = [
     "ANIMAL_CATEGORY_ID",
     "CATEGORY_MAP",
@@ -316,6 +325,7 @@ __all__ = [
     "analyze_single_image",
     "get_category_label",
     "get_detector",
+    "warmup_models",
     "run_analysis",
     "run_detection",
 ]

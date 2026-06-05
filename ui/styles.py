@@ -484,73 +484,94 @@ CUSTOM_CSS = """
     opacity: 0.65;
 }
 
-/* ── Field review (minimal) ── */
-.gradio-container {
-    max-width: 1180px !important;
+/* ── Field device (rugged trail-cam review) ── */
+.gradio-container.field-device,
+.gradio-container:has(.field-device) {
+    max-width: 1320px !important;
+    padding: 0 1.25rem 2rem !important;
+}
+.field-device .gap {
+    gap: 1rem !important;
 }
 .field-header {
-    padding: 1.25rem 0 0.75rem;
-    border-bottom: 1px solid var(--bd-line);
-    margin-bottom: 0.5rem;
+    padding: 1.5rem 0 1rem;
+    border-bottom: 2px solid var(--bd-line);
+    margin-bottom: 0.25rem;
 }
 .field-header-main {
     display: flex;
     align-items: baseline;
-    gap: 0.65rem;
+    gap: 0.75rem;
     flex-wrap: wrap;
 }
 .field-brand {
-    font-size: 1.35rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
     color: var(--bd-text);
     text-transform: uppercase;
 }
 .field-title {
-    font-size: 1.1rem;
-    font-weight: 500;
+    font-size: 1.15rem;
+    font-weight: 600;
     color: var(--bd-earth);
 }
 .field-version {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--bd-text-muted);
     margin-left: auto;
+    letter-spacing: 0.04em;
 }
 .field-tagline {
-    margin: 0.35rem 0 0;
-    font-size: 0.88rem;
+    margin: 0.45rem 0 0;
+    font-size: 0.84rem;
     color: var(--bd-text-muted);
+    letter-spacing: 0.02em;
 }
-.field-action-bar {
-    padding: 0.75rem 0;
-    gap: 0.5rem;
-}
-.field-action-bar .gr-button-primary {
-    min-width: 10rem;
+
+/* Sticky aggregate stats — always visible while scrolling */
+.field-stats-strip {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: var(--bd-cream);
+    padding: 0.35rem 0;
+    margin: 0.5rem 0 0.25rem;
 }
 .field-summary {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem 1.25rem;
-    padding: 0.85rem 0;
-    border-top: 1px solid var(--bd-border);
-    border-bottom: 1px solid var(--bd-border);
-    margin: 0.25rem 0 0.75rem;
+    align-items: flex-end;
+    gap: 0.65rem 2rem;
+    padding: 1rem 1.25rem;
+    background: linear-gradient(180deg, #E8E2D6 0%, var(--bd-sand) 100%);
+    border: 2px solid var(--bd-line);
+    border-radius: 6px;
+    box-shadow: 0 1px 0 rgba(44, 51, 40, 0.06);
+}
+.field-summary-active {
+    border-color: var(--bd-earth);
 }
 .field-summary-empty {
     color: var(--bd-text-muted);
-    font-size: 0.9rem;
-    padding: 0.5rem 0;
+    font-size: 0.92rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    padding: 0.85rem 1.25rem;
+    justify-content: center;
 }
 .field-stat {
     display: flex;
     flex-direction: column;
-    min-width: 4.5rem;
+    min-width: 5rem;
+}
+.field-stat-primary .field-stat-val {
+    font-size: 1.85rem;
 }
 .field-stat-val {
-    font-size: 1.45rem;
-    font-weight: 700;
-    line-height: 1.1;
+    font-size: 1.55rem;
+    font-weight: 800;
+    line-height: 1;
     color: var(--bd-text);
     font-variant-numeric: tabular-nums;
 }
@@ -558,19 +579,222 @@ CUSTOM_CSS = """
     color: var(--bd-moss);
 }
 .field-stat-lbl {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.08em;
     color: var(--bd-text-muted);
-    margin-top: 0.15rem;
+    margin-top: 0.25rem;
+    font-weight: 600;
 }
 .field-stat-species {
     flex: 1 1 100%;
     min-width: 100%;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--bd-border);
+    margin-top: 0.15rem;
 }
 .field-stat-species .field-stat-val {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 600;
+    line-height: 1.35;
+}
+
+/* Species toggle — always visible */
+.field-species-bar {
+    align-items: center !important;
+    gap: 1rem !important;
+    padding: 0.35rem 0 0.65rem !important;
+    border-bottom: 1px solid var(--bd-border);
+    margin-bottom: 0.25rem;
+}
+.field-species-bar .gr-checkbox {
+    margin: 0 !important;
+}
+.field-species-bar .gr-checkbox label {
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    color: var(--bd-text) !important;
+}
+.field-species-status {
+    flex: 1 1 auto !important;
+    min-width: 0;
+}
+.field-species-pill {
+    display: inline-block;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    line-height: 1.35;
+    border: 1px solid var(--bd-border);
+}
+.field-species-pill-label {
+    color: var(--bd-text);
+}
+.field-species-ok {
+    background: #e8f0ea;
+    border-color: var(--bd-moss);
+}
+.field-species-ok .field-species-pill-label {
+    color: var(--bd-moss);
+    font-weight: 600;
+}
+.field-species-loading {
+    background: #f5f0e4;
+    border-color: var(--bd-earth);
+}
+.field-species-warn {
+    background: #faf4ec;
+    border-color: var(--bd-amber);
+}
+.field-species-error {
+    background: #faf0ee;
+    border-color: var(--bd-terracotta);
+}
+.field-species-off {
+    background: var(--bd-sand);
+    color: var(--bd-text-muted);
+}
+.field-detections-wrap .dataframe-wrap {
+    max-height: 200px;
+    overflow-y: auto !important;
+    border: 2px solid var(--bd-line) !important;
+    border-radius: 6px !important;
+}
+.field-detections-wrap .label-wrap span {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    color: var(--bd-text-muted) !important;
+}
+
+/* Compact action row */
+.field-action-bar {
+    padding: 0.5rem 0 0.25rem;
+    gap: 0.65rem !important;
+    align-items: stretch !important;
+}
+.field-action-bar button {
+    font-weight: 700 !important;
+    letter-spacing: 0.03em !important;
+    min-height: 2.75rem !important;
+    border-radius: 6px !important;
+}
+.field-action-bar .gr-button-primary {
+    min-width: 14rem;
+    font-size: 1rem !important;
+}
+.field-status-line {
+    font-size: 0.8rem !important;
+    color: var(--bd-text-muted) !important;
+    margin: 0 !important;
+    padding: 0 0 0.5rem !important;
+    letter-spacing: 0.02em;
+}
+.field-status-line p {
+    margin: 0 !important;
+}
+
+/* Frame title above viewers */
+.field-frame-title {
+    font-size: 0.88rem !important;
+    color: var(--bd-text) !important;
+    margin: 0.75rem 0 0.35rem !important;
+    padding: 0 !important;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.field-frame-title p {
+    margin: 0 !important;
+}
+.field-frame-title strong {
+    color: var(--bd-moss);
+    font-weight: 700;
+}
+
+/* Dominant side-by-side viewers */
+.field-viewer-row {
+    gap: 1rem !important;
+    margin: 0.25rem 0 1rem !important;
+}
+.field-viewer-row > .block,
+.field-viewer-img .block {
+    flex: 1 1 50% !important;
+}
+.field-viewer-img .image-container,
+.field-viewer-img img,
+.field-image-panel .image-container,
+.field-image-panel img {
+    border-radius: 4px !important;
+    border: 2px solid var(--bd-line) !important;
+    background: #141412 !important;
+}
+.field-viewer-img .image-frame,
+.field-image-panel .image-frame {
+    min-height: 0 !important;
+    max-height: 480px !important;
+}
+.field-viewer-img .empty,
+.field-image-panel .empty {
+    min-height: 120px !important;
+    max-height: 160px !important;
+}
+.field-viewer-img .label-wrap,
+.field-image-panel .label-wrap {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+    color: var(--bd-text-muted) !important;
+    margin-bottom: 0.35rem !important;
+}
+
+/* Results table — scannable, compact */
+.biodex-page .field-table-wrap {
+    margin-top: 0.5rem;
+}
+.biodex-page .field-table-wrap .label-wrap span {
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    color: var(--bd-text-muted) !important;
+}
+.biodex-page .field-table-wrap .dataframe-wrap {
+    max-height: 240px;
+    overflow-y: auto !important;
+    border: 2px solid var(--bd-line) !important;
+    border-radius: 6px !important;
+}
+.biodex-page .field-table-wrap table {
+    font-size: 0.82rem !important;
+}
+.biodex-page .field-table-wrap th {
+    background: var(--bd-sage-deep) !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.05em !important;
+}
+
+/* Collapsed sections — low visual weight */
+.field-device .accordion {
+    border-top: 1px solid var(--bd-border) !important;
+    margin-top: 0.75rem !important;
+}
+.field-device .accordion > .label-wrap {
+    opacity: 0.85;
+}
+.field-device .accordion > .label-wrap span {
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    color: var(--bd-text-muted) !important;
+}
+.field-export-row {
+    padding: 0.25rem 0 0.5rem;
+    gap: 0.5rem !important;
 }
 .field-review-label {
     font-size: 0.85rem;
@@ -580,29 +804,13 @@ CUSTOM_CSS = """
 .field-review-label strong {
     color: var(--bd-text);
 }
-.field-image-panel .image-container,
-.field-image-panel img {
-    border-radius: 4px !important;
-    border: 1px solid var(--bd-line) !important;
-    background: #1a1a18 !important;
-}
-.field-image-panel .image-frame {
-    min-height: 420px !important;
-}
-.field-export-row {
-    padding: 0.5rem 0 0.75rem;
-    border-top: 1px solid var(--bd-border);
-}
 .field-footer {
     text-align: center;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     color: var(--bd-text-muted);
-    padding: 1.5rem 0 0.5rem;
+    padding: 2rem 0 0.5rem;
     border-top: 1px solid var(--bd-border);
-    margin-top: 1rem;
-}
-.biodex-page .field-table-wrap .dataframe-wrap {
-    max-height: 220px;
-    overflow-y: auto !important;
+    margin-top: 1.5rem;
+    opacity: 0.7;
 }
 """
