@@ -30,7 +30,7 @@ First analysis downloads models once (~500 MB). After that, everything stays off
 
 ## Try online (limited preview)
 
-**[Open the demo on Hugging Face](https://huggingface.co/spaces/FratresMedAI/biodex-demo)** — quick look in your browser only.
+**[Open the demo on Hugging Face](https://huggingface.co/spaces/Fratres-X-AI/BioDex)** — quick look in your browser only.
 
 - Max **30 images** per batch
 - **No** ZIP export
