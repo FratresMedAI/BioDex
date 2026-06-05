@@ -1,14 +1,13 @@
+# Build deps only. onnx==1.16.1 + speciesnet install at app startup (--no-deps, prebuilt wheels).
 --extra-index-url https://download.pytorch.org/whl/cpu
 protobuf==3.20.1
-onnx==1.16.1
 onnxruntime
 torch
 torchvision
-megadetector>=10.0,<11.0
-speciesnet>=5.0,<6.0
-gradio>=5.0,<7.0
 numpy>=1.26.4,<2.0
 Pillow>=9.5
 pandas>=2.1
+tqdm>=4.64
+megadetector>=10.0,<11.0
+gradio>=5.0,<7.0
 biodex @ git+https://github.com/FratresMedAI/BioDex.git
-protobuf==3.20.1

@@ -6,8 +6,33 @@ Max 30 images · no ZIP · run locally for the full private app.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
+
+
+def _ensure_runtime_ml_deps() -> None:
+    """Install onnx (prebuilt wheel) + speciesnet without protobuf conflicts."""
+    packages = [
+        ("onnx", "onnx==1.16.1"),
+        ("speciesnet", "speciesnet>=5.0,<6.0"),
+    ]
+    for module, spec in packages:
+        try:
+            __import__(module)
+        except ImportError:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", spec, "--no-deps", "-q"],
+                check=False,
+            )
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "protobuf==3.20.1", "--force-reinstall", "-q"],
+        check=False,
+    )
+
+
+_ensure_runtime_ml_deps()
 
 import gradio as gr
 import pandas as pd
