@@ -1,14 +1,16 @@
 """
-Shared data types and geometry helpers for BioDex v0.2.
+Shared data types and geometry helpers for BioDex v0.4.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 from PIL import Image
 
-BIODEX_VERSION = "0.2"
+BIODEX_VERSION = "0.4"
+MODEL_ID = "MDV5A"
 
 # MegaDetector category IDs.
 ANIMAL_CATEGORY_ID = "1"
@@ -21,6 +23,39 @@ CATEGORY_MAP: dict[str, str] = {
     VEHICLE_CATEGORY_ID: "vehicle",
 }
 
+# Species confidence tiers.
+SPECIES_TIER_HIGH = "high"
+SPECIES_TIER_BORDERLINE = "borderline"
+SPECIES_TIER_LOW = "low"
+SPECIES_TIER_UNCERTAIN = "uncertain"
+
+SPECIES_HIGH_THRESHOLD = 0.70
+SPECIES_BORDERLINE_THRESHOLD = 0.40
+DEFAULT_SPECIES_MIN_CONFIDENCE = 0.40
+UNCERTAIN_LABEL = "Uncertain"
+SPECIES_CROP_PADDING = 0.15
+
+
+def utc_now_iso() -> str:
+    """Return the current UTC time as an ISO-8601 string."""
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def species_confidence_tier(confidence: float, species_min_confidence: float) -> str:
+    """Map a species confidence score to a presentation tier."""
+    if confidence < species_min_confidence:
+        return SPECIES_TIER_UNCERTAIN
+    if confidence >= SPECIES_HIGH_THRESHOLD:
+        return SPECIES_TIER_HIGH
+    if confidence >= SPECIES_BORDERLINE_THRESHOLD:
+        return SPECIES_TIER_BORDERLINE
+    return SPECIES_TIER_LOW
+
+
+def is_blank_taxon_label(label: str) -> bool:
+    """Return True when a formatted taxon label represents a blank prediction."""
+    return label.strip().lower() == "blank"
+
 
 @dataclass
 class SpeciesPrediction:
@@ -29,6 +64,8 @@ class SpeciesPrediction:
     label: str
     confidence: float
     top3: list[tuple[str, float]] = field(default_factory=list)
+    raw_label: str = ""
+    confidence_tier: str = SPECIES_TIER_HIGH
 
 
 @dataclass
@@ -57,7 +94,33 @@ class AnalysisResult:
     species_enabled: bool
     filename: str
     summary: str
+    image_width: int = 0
+    image_height: int = 0
+    analyzed_at: str = field(default_factory=utc_now_iso)
+    warnings: list[str] = field(default_factory=list)
     species_warning: str = ""
+    error: str = ""
+    model_id: str = ""
+    inference_ms: float | None = None
+    timestamp: str | None = None
+
+
+@dataclass
+class BatchResult:
+    """Aggregate output from analyzing multiple camera trap images."""
+
+    results: list[AnalysisResult]
+    failed: list[tuple[str, str]]
+    total_images: int
+    processed_count: int
+    blank_count: int
+    total_detections: int
+    animal_count: int
+    person_count: int
+    vehicle_count: int
+    species_counts: dict[str, int] = field(default_factory=dict)
+    threshold: float = 0.25
+    species_enabled: bool = False
 
 
 def get_category_label(category_id: str) -> str:
@@ -76,7 +139,6 @@ def format_taxon_label(raw_label: str) -> str:
     if not raw_label:
         return "Unknown"
 
-    # SpeciesNet often uses semicolon-separated hierarchy; prefer the most specific part.
     parts = [part.strip() for part in raw_label.split(";") if part.strip()]
     label = parts[-1] if parts else raw_label
     label = label.replace("_", " ").strip()
@@ -85,6 +147,58 @@ def format_taxon_label(raw_label: str) -> str:
         return "Blank"
 
     return label.title()
+
+
+def format_confidence_pct(value: float) -> str:
+    """Format a 0–1 confidence as a percentage string."""
+    return f"{value * 100:.0f}%"
+
+
+def format_species_alternatives(
+    species: SpeciesPrediction | None,
+    *,
+    exclude_top: bool = True,
+) -> str:
+    """
+    Format species alternatives for UI and export columns.
+
+    Only shown when confidence is borderline or low/uncertain.
+    """
+    if not species or not species.top3:
+        return ""
+
+    if species.confidence_tier not in (
+        SPECIES_TIER_BORDERLINE,
+        SPECIES_TIER_LOW,
+        SPECIES_TIER_UNCERTAIN,
+    ):
+        return ""
+
+    items = species.top3[1:] if exclude_top else species.top3
+    items = [(label, score) for label, score in items if not is_blank_taxon_label(label)]
+    if not items:
+        return ""
+
+    return " | ".join(f"{label} ({score:.2f})" for label, score in items)
+
+
+def format_species_display(species: SpeciesPrediction | None) -> str:
+    """Format species for labels and summaries."""
+    if not species:
+        return ""
+
+    pct = format_confidence_pct(species.confidence)
+    if species.confidence_tier == SPECIES_TIER_UNCERTAIN:
+        alt = format_species_alternatives(species)
+        if alt:
+            first_alt = alt.split(" | ")[0]
+            return f"Uncertain — maybe {first_alt}"
+        return f"Uncertain ({pct})"
+
+    if species.label == UNCERTAIN_LABEL:
+        return f"Uncertain ({pct})"
+
+    return f"{species.label} ({pct})"
 
 
 def bbox_to_pixels(

@@ -2,19 +2,38 @@
 
 ![CI](https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml/badge.svg)
 
-**Local AI for wildlife camera trap analysis and biodiversity monitoring.**
+**Local, privacy-first AI for wildlife camera trap analysis.**
 
-BioDex is a privacy-first desktop tool that helps researchers, citizen scientists, and land managers triage camera trap images — detect animals, filter blanks, classify species, draw bounding boxes, and export results. Everything runs on your machine. No cloud API calls during analysis.
+BioDex helps researchers, citizen scientists, and land managers triage camera trap images on their own machine — detect animals, filter blanks, identify species, annotate photos for reports, and export structured results. No cloud API calls during analysis.
 
 ---
 
-## What's new in v0.2
+## What's new in v0.4
 
-- **Optional species classification** — SpeciesNet runs locally on animal crops (toggle in UI)
-- **Professional visualization** — color-coded boxes, confidence labels, overlap-aware placement
-- **Rich exports** — CSV with species fields + structured JSON export
-- **Polished Gradio UI** — stat cards, detections table, prominent export buttons
-- **Typed pipeline** — structured `AnalysisResult` objects across the `core/` modules
+- **Report-grade visualization** — stroked labels, RGBA overlays, corner brackets for tiny detections, optional legend
+- **Smarter species presentation** — confidence tiers (high / borderline / uncertain), blank-taxa filtering, expanded crops
+- **Demo Mode tab** — one-click Run Demo with bundled ocelot sample + species classification
+- **Polished UI** — shared settings panel, welcome guide, status feedback, cohesive Single + Batch tabs
+- **Reliable samples** — `scripts/fetch_examples.py` downloads a known-good ocelot demo image
+
+---
+
+## Try the demo in 30 seconds
+
+```powershell
+cd BioDex
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+python scripts/fetch_examples.py
+python app.py
+```
+
+Open **http://127.0.0.1:7860**, open the **Demo Mode** tab, and click **Run Demo**.
+
+Expected result on the bundled sample: **1 animal**, species **Ocelot** at high confidence, with a clean annotated image ready to export.
+
+Full demo script: [docs/demo.md](docs/demo.md)
 
 ---
 
@@ -31,24 +50,14 @@ BioDex is built for **defensive, protective use of AI**: biodiversity monitoring
 **Requirements:** Python 3.10–3.12, ~3 GB disk space (including model weights after first run).
 
 ```powershell
-# Clone or download this repo, then:
-cd BioDex
-
-python -m venv .venv
-.\.venv\Scripts\activate          # Windows
-# source .venv/bin/activate         # macOS / Linux
-
 pip install -r requirements.txt
+python scripts/fetch_examples.py   # optional but recommended for demo
 python app.py
 ```
 
-Open **http://127.0.0.1:7860** in your browser, upload a JPG or PNG camera trap image, and click **Analyze Image**.
-
-> **First run:** MegaDetector downloads model weights (~280 MB) once. If you enable species classification, SpeciesNet downloads additional weights (~100 MB). Internet is required for first-time downloads; all later analysis works offline.
+> **First run:** MegaDetector downloads model weights (~280 MB) once. SpeciesNet downloads additional weights (~214 MB) when first enabled. Internet is required for first-time downloads; all later analysis works offline.
 
 ### Optional: GPU acceleration
-
-If you have an NVIDIA GPU, install the CUDA build of PyTorch for faster inference:
 
 ```powershell
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
@@ -60,44 +69,113 @@ CPU-only mode works fine for occasional single-image analysis.
 
 ```powershell
 pip install -r requirements-ci.txt
-pytest tests/ -v
-```
-
-For a full local smoke test with model inference (downloads weights on first run):
-
-```powershell
-pip install -r requirements.txt
+pytest tests/ -v -m "not slow"
+python -m mypy core
+python -m ruff check core tests app.py
 python scripts/smoke_test.py
 python scripts/smoke_test.py --species
+python scripts/batch_analyze.py examples/ -o /tmp/biodex-out --recursive
+```
+
+Install editable with CLI extras: `pip install -e ".[dev,cli]"`
+
+Manual lint (no pre-commit hook yet): `ruff check .` and `mypy core`
+
+### Fresh environment (venv or conda)
+
+**venv (recommended):**
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate   # Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+# Optional protobuf pin for megadetector-first installs:
+pip install -r requirements.txt -c constraints.txt
+python scripts/fetch_examples.py
+```
+
+**conda:**
+
+```bash
+conda create -n biodex python=3.11 -y
+conda activate biodex
+pip install -r requirements.txt
 ```
 
 ### Troubleshooting
 
-**SpeciesNet / MegaDetector protobuf warning:** `megadetector` and `speciesnet` may disagree on `protobuf` versions. If you see install conflicts, try a fresh virtual environment. Detection and species classification both worked in testing despite pip warnings.
+**Sample image missing:** Run `python scripts/fetch_examples.py`
+
+**SpeciesNet / MegaDetector protobuf warning:** See [Reproducing protobuf conflict](#reproducing-protobuf-conflict) below. Try a fresh virtual environment if pip reports conflicts.
+
+**Wrong megadetector package:** Ensure `megadetector>=10.0,<11.0` — version 5.x on PyPI is unrelated and breaks imports.
 
 **Species labels look wrong:** SpeciesNet accuracy varies by region. Treat species output as a suggestion for expert review.
 
-**Bind to all interfaces (optional):** Set `BIODEX_HOST=0.0.0.0` and `BIODEX_PORT=7860` before running `python app.py`.
+---
+
+## Known limitations
+
+- No historical `pyproject.toml`-only install path before v0.4 packaging pass; use `requirements.txt` or `pip install -e .` after pulling latest.
+- Loose dependency resolution can still surface **protobuf conflicts** between MegaDetector (via ultralytics-yolov5, `protobuf<=3.20.1`) and SpeciesNet/onnx (prefer newer protobuf).
+- Test coverage is unit-focused; edge cases for corrupt images, zero detections, classification failures, and non-RGB inputs are in `tests/` but full model inference is marked `@pytest.mark.slow`.
+- Gradio UI progress and error display improved in v0.4 but browser batch uploads remain limited for very large folders — prefer `scripts/batch_analyze.py` or `biodex analyze` CLI.
+- Configuration is environment-driven (`BIODEX_*` vars); no YAML file yet.
+- `examples/` may be empty until `scripts/fetch_examples.py` is run; smoke test falls back with a clear message.
+- Strict mypy/ruff enforcement applies to `core/` in CI; UI scripts are lint-checked but not fully typed.
 
 ---
 
-## Features
+## Verification
 
-### Current (v0.2)
+After install, run these commands from the repository root:
 
-- Upload JPG/PNG camera trap images
-- MegaDetector v5a detection (animal, person, vehicle)
-- Optional SpeciesNet species classification on animal crops
-- Adjustable confidence threshold (default 0.25)
-- Side-by-side original vs. annotated view
-- Stat cards: totals, animals, people, vehicles, blank status
-- Detections table with species and bbox columns
-- Export annotated PNG, detections CSV, and results JSON
-- 100% local inference — your images never leave your computer
+```powershell
+pip install -r requirements-ci.txt
+pytest tests/ -v -m "not slow"
+python -m mypy core
+python -m ruff check core tests app.py
+python scripts/fetch_examples.py
+python scripts/smoke_test.py
+python -c "from app import build_app; build_app(); print('app ok')"
+```
 
-### Planned
+With full runtime dependencies:
 
-See [docs/roadmap.md](docs/roadmap.md) for batch processing, video support, geofencing, and more.
+```powershell
+pip install -r requirements.txt
+python scripts/smoke_test.py --species
+python scripts/batch_analyze.py examples/ -o ./batch_out
+```
+
+---
+
+## Reproducing protobuf conflict
+
+MegaDetector 10.x pulls `protobuf<=3.20.1` through its YOLOv5 stack. SpeciesNet and onnx often want **protobuf ≥ 4.25**. Pip may install a version that satisfies only one side.
+
+**Mitigation steps:**
+
+1. Create a **fresh venv** (or conda env) — do not reuse an env where unrelated packages pinned protobuf.
+2. Install BioDex deps: `pip install -r requirements.txt`
+3. Optional stricter pin attempt: `pip install -c constraints.txt -r requirements.txt`
+4. Verify detection only: `python scripts/smoke_test.py`
+5. Verify species path: `python scripts/smoke_test.py --species`
+6. If SpeciesNet fails at import or runtime, capture `pip show protobuf megadetector speciesnet` and open an issue — full resolution may require upstream alignment.
+
+---
+
+## Features (v0.4)
+
+- **Single-image analysis** with side-by-side original vs annotated view
+- **Batch folder triage** — multi-file upload, summary table, master CSV/JSON
+- **MegaDetector v5a** — animal, person, vehicle detection with adjustable threshold
+- **SpeciesNet species ID** — optional local classification with confidence tiers and alternatives
+- **Report-ready annotations** — color-coded boxes, legend, overlap-aware labels
+- **Exports** — PNG, CSV, JSON, and ZIP bundle (single image); batch CSV/JSON/ZIP
+- **100% local** — your images never leave your computer
+
+See [docs/roadmap.md](docs/roadmap.md) for upcoming video support, geofencing, and pipeline exports.
 
 ---
 
@@ -120,30 +198,20 @@ See [docs/roadmap.md](docs/roadmap.md) for batch processing, video support, geof
 ```
 BioDex/
 ├── app.py              # Gradio UI entry point
-├── requirements.txt
-├── core/               # Not named utils — avoids YOLOv5 import conflict
-│   ├── types.py        # AnalysisResult, DetectionRecord
-│   ├── detector.py     # MegaDetector pipeline
-│   ├── classifier.py   # SpeciesNet wrapper
-│   ├── visualization.py
-│   └── exports.py
-├── examples/           # Place sample images here for testing
-└── docs/
-    └── roadmap.md
+├── ui/                 # Styles and HTML components
+├── core/               # Detection, species, viz, exports, batch, cli (see docs/adr-core-package.md)
+├── examples/           # Sample manifest + demo images
+├── scripts/            # fetch_examples.py, smoke_test.py, batch_analyze.py
+└── docs/               # roadmap, demo guide, screenshots
 ```
 
 ---
 
-## How it works
+## Screenshots and demo
 
-1. You upload a camera trap image.
-2. MegaDetector v5a runs locally and returns bounding boxes for animals, people, and vehicles.
-3. Detections below your confidence threshold are filtered out.
-4. If species classification is enabled, BioDex crops each animal detection and runs SpeciesNet locally.
-5. If nothing passes the threshold, the image is flagged as a likely **blank**.
-6. BioDex draws annotated boxes and lets you download PNG, CSV, and JSON results.
+See [docs/demo.md](docs/demo.md) for a step-by-step demo script and screenshot tips.
 
-**SpeciesNet note:** The classifier covers ~2,000 taxa from diverse regions, but accuracy varies by geography and camera setup. Treat species labels as suggestions for expert review, not ground truth.
+Save captures to `docs/screenshots/` for README and presentations.
 
 ---
 
@@ -151,8 +219,8 @@ BioDex/
 
 | Version | Focus |
 |---------|-------|
-| **v0.2** (now) | Species classification, improved viz, JSON export |
-| **v0.3+** | Batch processing, video clips, geofencing UI |
+| **v0.4** (now) | Demo-ready polish, viz quality, species tiers, Try Demo |
+| **v0.5+** | Geofencing UI, video clips, Wildlife Insights export |
 
 Full details: [docs/roadmap.md](docs/roadmap.md)
 
@@ -160,25 +228,15 @@ Full details: [docs/roadmap.md](docs/roadmap.md)
 
 ## Contributing
 
-Contributions are welcome! This project is intentionally small and readable — a good place to start if you care about conservation tech.
+Contributions are welcome! This project is intentionally small and readable.
 
-1. Fork the repo
-2. Create a feature branch
-3. Make your changes with clear commits
-4. Open a pull request
-
-Ideas for contributions: batch mode, Wildlife Insights export, geofencing UI, documentation improvements.
+Ideas: geofencing UI, video support, Wildlife Insights export, documentation improvements.
 
 ---
 
 ## Conservation framing
 
-BioDex exists to help people **protect biodiversity**, not to enable surveillance or harm. We encourage use by:
-
-- Field biologists and ecologists
-- Land trusts and protected area managers
-- Citizen science programs
-- Students learning conservation technology
+BioDex exists to help people **protect biodiversity**, not to enable surveillance or harm.
 
 Please use BioDex responsibly and in accordance with local laws and ethical guidelines for wildlife monitoring.
 
@@ -188,22 +246,12 @@ Please use BioDex responsibly and in accordance with local laws and ethical guid
 
 BioDex is released under the [MIT License](LICENSE).
 
-MegaDetector and SpeciesNet are developed by the conservation AI community and are subject to their own licenses. See their respective repositories for details and citation information.
+MegaDetector and SpeciesNet are subject to their own licenses — see their repositories for citation information.
 
 ---
 
 ## Acknowledgments
 
-- [MegaDetector](https://github.com/agentmorris/MegaDetector) — detection model
-- [SpeciesNet](https://github.com/google/cameratrapai) — species classification
-- [LILA BC](https://lila.science/) — camera trap datasets and community
-- Everyone working to make conservation AI accessible and open
-
----
-
-## Screenshot
-
-_Screenshot placeholder — run `python app.py` and upload a camera trap image to see BioDex in action._
-
-Sample test image from MegaDetector docs:
-https://github.com/agentmorris/MegaDetector/raw/main/images/orinoquia-thumb-web.jpg
+- [MegaDetector](https://github.com/agentmorris/MegaDetector)
+- [SpeciesNet](https://github.com/google/cameratrapai)
+- [LILA BC](https://lila.science/)

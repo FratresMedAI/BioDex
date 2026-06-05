@@ -1,0 +1,13 @@
+# Optional pip constraints for reproducible installs.
+# Usage: pip install -r requirements.txt -c constraints.txt
+#
+# KNOWN CONFLICT: megadetector 10.x (via ultralytics-yolov5) pins protobuf<=3.20.1,
+# while speciesnet/onnx prefer protobuf>=4.25. Pip may report a resolver warning.
+# If SpeciesNet fails at runtime, use a fresh venv and install megadetector first,
+# then speciesnet, and test with: python scripts/smoke_test.py --species
+#
+# Do NOT install the unrelated PyPI package "megadetector" 5.x — use >=10.0 only.
+
+protobuf>=3.20.1,<=3.20.1
+onnx>=1.17.0,<1.22.0
+setuptools>=65.0,<81.0

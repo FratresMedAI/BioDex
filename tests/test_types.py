@@ -1,14 +1,15 @@
 """Unit tests for core.types helpers."""
 
-from PIL import Image
-
 from core.types import (
     bbox_area,
     bbox_to_pixels,
     crop_from_bbox,
+    format_species_alternatives,
     format_taxon_label,
     get_category_label,
+    SpeciesPrediction,
 )
+from PIL import Image
 
 
 def test_get_category_label():
@@ -21,6 +22,18 @@ def test_format_taxon_label():
     assert format_taxon_label("mammalia;macropus_giganteus") == "Macropus Giganteus"
     assert format_taxon_label("blank") == "Blank"
     assert format_taxon_label("") == "Unknown"
+
+
+def test_format_species_alternatives():
+    species = SpeciesPrediction(
+        label="Deer",
+        confidence=0.55,
+        top3=[("Deer", 0.55), ("Elk", 0.20), ("Blank", 0.005)],
+        confidence_tier="borderline",
+    )
+    text = format_species_alternatives(species)
+    assert "Elk" in text
+    assert "Ocelot" not in text
 
 
 def test_bbox_to_pixels():

@@ -1,0 +1,10 @@
+# Demo screenshots
+
+Place annotated BioDex output screenshots here for the README and presentations.
+
+Suggested captures:
+- Single Image tab with Try Demo results (Ocelot detection + species)
+- Annotated image showing legend and color-coded boxes
+- Batch Folder summary table
+
+See [docs/demo.md](demo.md) for step-by-step instructions.

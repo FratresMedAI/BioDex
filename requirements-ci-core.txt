@@ -1,0 +1,9 @@
+# Lightweight dependencies for CI unit tests (no full torch / model downloads)
+gradio>=5.0,<7.0
+Pillow>=9.5
+numpy>=1.26.4,<2.0
+pandas>=2.1
+pytest>=8.0
+ruff>=0.4
+mypy>=1.10
+types-Pillow

@@ -30,30 +30,45 @@ An honest look at where BioDex is headed. Timelines are approximate — this is 
 
 ---
 
-## v0.3 — Batch processing dashboard
+## v0.3 — Batch processing dashboard (complete)
 
 **Goal:** Analyze folders, not just single images.
 
-- Upload or point to a local folder of images
-- Progress bar and per-image results table
-- Filter view: blanks only, animals only, humans present
-- Summary statistics (detection rate, species counts)
-- Bulk export of annotated images and master CSV/JSON
+- [x] Multi-file upload for batch analysis (browser-safe, no server path exposure)
+- [x] Progress bar and per-image results table
+- [x] Summary statistics (blank count, detection totals, species frequency)
+- [x] Bulk export of master CSV/JSON and annotated images ZIP (first 50)
+- [x] Export bundle (ZIP) for single-image workflow
+- [x] Visualization polish: adaptive fonts, category legend, label connectors
+- [x] Species alternatives column in UI and exports
 
-**Challenge:** UI responsiveness on large folders (10k+ images); may need background worker thread.
+**Known limitation:** Very large folders (10k+ images) may be slow in the browser UI; use the batch CLI (`scripts/batch_analyze.py`, `biodex analyze`, or `python scripts/smoke_test.py --batch examples/`).
 
 ---
 
-## v0.4 — Video and motion
+## v0.4.1 — Packaging and batch CLI (complete)
 
-**Goal:** Support common camera trap video formats.
+**Goal:** Package for install, harden core logging/tests, and support folder batch from the shell.
 
-- Short video clip upload (MP4, AVI)
-- Frame sampling + detection aggregation
-- Highlight frames with highest-confidence animal detections
-- Export key frames with bounding boxes
+- [x] `pyproject.toml` with hatchling, ruff/mypy config, and `biodex` console script
+- [x] `constraints.txt` and README protobuf mitigation
+- [x] Audit metadata on `AnalysisResult` (`model_id`, `inference_ms`, `timestamp`)
+- [x] Expanded pytest edge cases (`tests/test_detector.py`, strict `pytest.ini`)
+- [x] Batch CLI: `scripts/batch_analyze.py` / `biodex analyze`
+- [x] CI: pytest + ruff + mypy on `core/`
 
-**Challenge:** Video processing is memory-intensive; batch size and frame rate limits will apply.
+---
+
+## v0.4 — Demo-ready polish (complete)
+
+**Goal:** Make BioDex impressive and trustworthy for first-time users and conservation demos.
+
+- [x] Report-grade visualization (stroked labels, RGBA overlays, corner brackets, legend toggle)
+- [x] Species confidence tiers with borderline alternatives and Uncertain handling
+- [x] Blank-taxa filtering and expanded animal crops for SpeciesNet
+- [x] One-click **Try Demo** flow with sample manifest and fetch script
+- [x] Polished UI — shared settings, welcome panel, status feedback, cohesive tabs
+- [x] Demo guide and screenshot documentation
 
 ---
 
@@ -69,7 +84,20 @@ An honest look at where BioDex is headed. Timelines are approximate — this is 
 
 ---
 
-## v0.6 — Acoustic monitoring (exploratory)
+## v0.6 — Video and motion
+
+**Goal:** Support common camera trap video formats.
+
+- Short video clip upload (MP4, AVI)
+- Frame sampling + detection aggregation
+- Highlight frames with highest-confidence animal detections
+- Export key frames with bounding boxes
+
+**Challenge:** Video processing is memory-intensive; batch size and frame rate limits will apply.
+
+---
+
+## v0.7 — Acoustic monitoring (exploratory)
 
 **Goal:** Extend BioDex beyond camera traps.
 
@@ -81,7 +109,7 @@ An honest look at where BioDex is headed. Timelines are approximate — this is 
 
 ---
 
-## v0.7 — Local fine-tuning UI
+## v0.8 — Local fine-tuning UI
 
 **Goal:** Let researchers adapt models to local species without cloud training.
 

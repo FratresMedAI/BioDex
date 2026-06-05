@@ -1,120 +1,47 @@
 """
-BioDex — Local AI for Wildlife Camera Traps (v0.2)
+BioDex — Local AI for Wildlife Camera Traps (v0.4)
 
-Gradio web UI for MegaDetector v5a detection and optional SpeciesNet classification.
-All inference runs locally; no cloud API calls during analysis.
+Gradio web UI for MegaDetector v5a detection, optional SpeciesNet classification,
+and batch folder analysis. All inference runs locally.
 """
 
 from __future__ import annotations
 
-import os
 import traceback
 
 import gradio as gr
-import pandas as pd
 from PIL import Image
 
-from core.detector import run_analysis
-from core.exports import detections_to_csv, export_json, save_annotated_image
-from core.types import BIODEX_VERSION, AnalysisResult
+from core.batch import run_batch
+from core.config import get_settings
+from core.detector import analyze_single_image
+from core.exports import (
+    batch_to_csv,
+    detections_to_csv,
+    export_batch_annotated_zip,
+    export_batch_json,
+    export_bundle,
+    export_json,
+    save_annotated_image,
+)
+from core.types import BIODEX_VERSION
 from core.visualization import draw_detections
+from ui.components import (
+    BATCH_COLUMNS,
+    RESULTS_COLUMNS,
+    build_batch_dataframe,
+    build_results_dataframe,
+    demo_tab_intro_html,
+    footer_html,
+    format_batch_stats_html,
+    format_stats_html,
+    header_html,
+    load_sample_image,
+    welcome_html,
+)
+from ui.styles import APP_THEME, CUSTOM_CSS
 
-CUSTOM_CSS = """
-.biodex-shell {
-    max-width: 1200px;
-    margin: 0 auto;
-}
-.biodex-header {
-    text-align: center;
-    margin-bottom: 1.25rem;
-    padding: 1.25rem 1rem 0.5rem;
-}
-.biodex-header h1 {
-    margin: 0 0 0.35rem 0;
-    font-weight: 700;
-    font-size: 2rem;
-}
-.biodex-tagline {
-    color: #546E7A;
-    font-size: 1.05rem;
-    margin: 0.35rem 0 0.75rem;
-}
-.biodex-badge-row {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-.biodex-badge {
-    display: inline-block;
-    padding: 0.25rem 0.75rem;
-    border-radius: 999px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-}
-.biodex-badge-version {
-    background: #E8F5E9;
-    color: #1B5E20;
-}
-.biodex-badge-privacy {
-    background: #ECEFF1;
-    color: #455A64;
-}
-.biodex-panel {
-    background: #FAFAFA;
-    border: 1px solid #ECEFF1;
-    border-radius: 12px;
-    padding: 1rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-.biodex-footer {
-    text-align: center;
-    color: #78909C;
-    font-size: 0.9rem;
-    margin-top: 1.5rem;
-    padding-top: 1rem;
-    border-top: 1px solid #ECEFF1;
-}
-.biodex-stat-grid {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(120px, 1fr));
-    gap: 0.75rem;
-    margin: 1rem 0;
-}
-@media (max-width: 900px) {
-    .biodex-stat-grid {
-        grid-template-columns: repeat(2, minmax(120px, 1fr));
-    }
-}
-.biodex-stat {
-    background: #FFFFFF;
-    border: 1px solid #E8F5E9;
-    border-radius: 10px;
-    padding: 0.85rem 1rem;
-    text-align: center;
-    box-shadow: 0 1px 2px rgba(46, 125, 50, 0.08);
-}
-.biodex-stat-value {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #2E7D32;
-    line-height: 1.1;
-}
-.biodex-stat-label {
-    font-size: 0.82rem;
-    color: #546E7A;
-    margin-top: 0.25rem;
-}
-.biodex-summary {
-    background: #F1F8E9;
-    border-left: 4px solid #2E7D32;
-    border-radius: 8px;
-    padding: 0.85rem 1rem;
-    margin: 0.75rem 0 1rem;
-    color: #37474F;
-}
-"""
+BATCH_ANNOTATED_ZIP_LIMIT = 50
 
 HOW_IT_WORKS = """
 ### How BioDex works
@@ -125,257 +52,554 @@ BioDex runs entirely on your computer. Your images are never uploaded to a cloud
 [MegaDetector](https://github.com/agentmorris/MegaDetector) finds animals, people, and vehicles in camera trap images and returns bounding boxes with confidence scores.
 
 **Step 2 — Species classification (optional)**  
-When enabled, BioDex crops each animal detection and runs [SpeciesNet](https://github.com/google/cameratrapai) locally to suggest likely species. SpeciesNet covers ~2,000 taxa trained on diverse camera trap data, but accuracy varies by region.
+When enabled, BioDex crops each animal detection and runs [SpeciesNet](https://github.com/google/cameratrapai) locally to suggest likely species. Borderline or uncertain predictions show alternatives for expert review.
+
+**Step 3 — Batch mode**  
+Upload multiple images at once to triage a folder. BioDex builds a summary table and exports a master CSV/JSON plus optional annotated image ZIP.
 
 **Blank images:** An image is treated as a **blank** when no animal, person, or vehicle passes your confidence threshold.
 
-**First run:** Model weights download once (MegaDetector ~280 MB; SpeciesNet ~100 MB if enabled), then analysis works offline.
+**First run:** Model weights download once (MegaDetector ~280 MB; SpeciesNet ~214 MB if enabled), then analysis works offline.
+
+**Species caveat:** SpeciesNet accuracy varies by region. Treat species labels as suggestions for expert review, not ground truth.
 """
 
-RESULTS_COLUMNS = [
-    "ID",
-    "Category",
-    "Confidence",
-    "Species",
-    "Species Conf",
-    "BBox",
-]
+SPECIES_TOGGLE_INFO = (
+    "Identify species locally with SpeciesNet on animal crops. "
+    "Typical runtime: ~5–15s on CPU. Downloads ~214 MB on first use."
+)
 
 
-def _format_bbox(bbox: list[float]) -> str:
-    xmin, ymin, width, height = bbox
-    return f"{xmin:.3f},{ymin:.3f},{width:.3f},{height:.3f}"
+def _disabled_download():
+    return gr.update(value=None, interactive=False)
 
 
-def _build_results_dataframe(result: AnalysisResult) -> pd.DataFrame:
-    rows = []
-    for detection in result.detections:
-        species_label = detection.species.label if detection.species else ""
-        species_conf = (
-            f"{detection.species.confidence:.3f}" if detection.species else ""
+def _enabled_download(path: str | None):
+    if path:
+        return gr.update(value=path, interactive=True)
+    return gr.update(value=None, interactive=False)
+
+
+def load_sample_only():
+    """Load the bundled sample image into the upload control."""
+    try:
+        image, note = load_sample_image()
+        return image, f'<div class="biodex-sample-note">{note}</div>', "**Status:** Sample loaded."
+    except FileNotFoundError as exc:
+        raise gr.Error(str(exc)) from exc
+
+
+def run_demo_mode(progress=gr.Progress()):
+    """Demo Mode: load sample, run detection + species, return full results."""
+    try:
+        image, note = load_sample_image()
+    except FileNotFoundError as exc:
+        raise gr.Error(str(exc)) from exc
+
+    progress(0, desc="Demo Mode: preparing sample image…")
+    results = analyze_image(
+        image=image,
+        threshold=0.25,
+        classify_species=True,
+        sample_note=note,
+        progress=progress,
+    )
+    # analyze_image returns 10 outputs; prepend enabled species toggle update
+    return (gr.update(value=True),) + results
+
+
+def try_demo(progress=gr.Progress()):
+    """Backward-compatible alias used by tests or scripts."""
+    return run_demo_mode(progress=progress)[1:]
+
+
+def _format_model_error(exc: Exception) -> str:
+    """Turn model-load/inference failures into actionable Gradio messages."""
+    message = str(exc)
+    lower = message.lower()
+    if "megadetector" in lower or "failed to load" in lower:
+        return (
+            f"**MegaDetector error:** {message}\n\n"
+            "First run downloads ~280 MB of weights. Check disk space, internet, "
+            "and that `megadetector>=10.0,<11.0` is installed (not the unrelated 5.x package)."
         )
-        rows.append(
-            [
-                detection.detection_id,
-                detection.category.title(),
-                f"{detection.confidence:.3f}",
-                species_label,
-                species_conf,
-                _format_bbox(detection.bbox),
-            ]
+    if "speciesnet" in lower or "species" in lower:
+        return (
+            f"**SpeciesNet error:** {message}\n\n"
+            "Species classification adds ~214 MB on first use. Try disabling species "
+            "classification or use a fresh virtual environment if protobuf conflicts appear."
         )
-    return pd.DataFrame(rows, columns=RESULTS_COLUMNS)
-
-
-def _format_stats_markdown(result: AnalysisResult) -> str:
-    blank_label = "Yes" if result.is_blank else "No"
-    return f"""
-<div class="biodex-stat-grid">
-  <div class="biodex-stat">
-    <div class="biodex-stat-value">{result.total}</div>
-    <div class="biodex-stat-label">Total detections</div>
-  </div>
-  <div class="biodex-stat">
-    <div class="biodex-stat-value">{result.animal_count}</div>
-    <div class="biodex-stat-label">Animals</div>
-  </div>
-  <div class="biodex-stat">
-    <div class="biodex-stat-value">{result.person_count}</div>
-    <div class="biodex-stat-label">People</div>
-  </div>
-  <div class="biodex-stat">
-    <div class="biodex-stat-value">{result.vehicle_count}</div>
-    <div class="biodex-stat-label">Vehicles</div>
-  </div>
-  <div class="biodex-stat">
-    <div class="biodex-stat-value">{blank_label}</div>
-    <div class="biodex-stat-label">Blank image</div>
-  </div>
-</div>
-
-<div class="biodex-summary">{result.summary}</div>
-"""
+    if "no space left" in lower or "disk full" in lower or isinstance(exc, OSError):
+        return (
+            f"**Storage error:** {message}\n\n"
+            "Free disk space for model weights and temporary export files."
+        )
+    return (
+        f"**Analysis failed:** {message}\n\n"
+        "If this is your first run, model weights may still be downloading."
+    )
 
 
 def analyze_image(
     image: Image.Image | None,
     threshold: float,
     classify_species: bool,
+    sample_note: str = "",
+    progress=gr.Progress(),
 ):
-    """
-    Main analysis handler: detect, optionally classify species, annotate, export.
-    """
+    """Main single-image analysis handler."""
     if image is None:
-        raise gr.Error("Please upload a camera trap image (JPG or PNG) first.")
+        raise gr.Error("Please upload a camera trap image (JPG or PNG) or use Demo Mode.")
 
     try:
         if not isinstance(image, Image.Image):
             image = Image.open(image)
 
-        result = run_analysis(
+        progress(0.05, desc="Preparing image…")
+        status = "Starting analysis…"
+
+        def on_progress(message: str) -> None:
+            nonlocal status
+            status = message
+            if "Loading MegaDetector" in message:
+                progress(0.15, desc=message)
+            elif "SpeciesNet" in message:
+                progress(0.55, desc=message)
+            else:
+                progress(0.5, desc=message)
+
+        result = analyze_single_image(
             image,
             threshold=threshold,
             classify_species=classify_species,
             filename="upload",
+            progress_callback=on_progress,
         )
         annotated = draw_detections(image, result.detections)
-        stats_md = _format_stats_markdown(result)
-        results_df = _build_results_dataframe(result)
+        stats_html = format_stats_html(result)
+        results_df = build_results_dataframe(result)
 
         annotated_path = save_annotated_image(annotated)
         csv_path = detections_to_csv(result)
         json_path = export_json(result)
+        bundle_path = export_bundle(result, annotated)
+
+        progress(1.0, desc="Analysis complete")
+        note_html = (
+            f'<div class="biodex-sample-note">{sample_note}</div>'
+            if sample_note and not sample_note.startswith("<div")
+            else (sample_note if sample_note else "")
+        )
 
         return (
             image,
             annotated,
-            stats_md,
+            note_html,
+            stats_html,
             results_df,
-            gr.update(value=annotated_path, visible=True),
-            gr.update(value=csv_path, visible=True),
-            gr.update(value=json_path, visible=True),
+            f"**Status:** {status} — complete.",
+            _enabled_download(annotated_path),
+            _enabled_download(csv_path),
+            _enabled_download(json_path),
+            _enabled_download(bundle_path),
         )
 
     except gr.Error:
         raise
     except ValueError as exc:
         raise gr.Error(str(exc)) from exc
+    except RuntimeError as exc:
+        raise gr.Error(_format_model_error(exc)) from exc
+    except OSError as exc:
+        raise gr.Error(_format_model_error(exc)) from exc
     except Exception as exc:
         tb = traceback.format_exc()
         raise gr.Error(
-            f"Analysis failed: {exc}\n\n"
-            "If this is your first run, model weights may still be downloading. "
-            "Check your internet connection and try again.\n\n"
+            f"{_format_model_error(exc)}\n\n```\n{tb}\n```"
+        ) from exc
+
+
+def analyze_batch(
+    files: list[str] | None,
+    threshold: float,
+    classify_species: bool,
+    progress=gr.Progress(),
+):
+    """Analyze multiple uploaded images."""
+    if not files:
+        raise gr.Error("Please upload one or more camera trap images.")
+
+    try:
+        from pathlib import Path
+
+        images: list[tuple[str, Image.Image]] = []
+        for file_path in files:
+            path = Path(file_path)
+            images.append((path.name, Image.open(path).convert("RGB")))
+
+        def on_batch_progress(current: int, total: int, message: str) -> None:
+            progress(current / total, desc=message)
+
+        batch = run_batch(
+            images,
+            threshold=threshold,
+            classify_species=classify_species,
+            progress_callback=on_batch_progress,
+        )
+
+        stats_html = format_batch_stats_html(batch)
+        batch_df = build_batch_dataframe(batch)
+        csv_path = batch_to_csv(batch)
+        json_path = export_batch_json(batch)
+
+        annotated_paths: list[tuple[str, str]] = []
+        for result in batch.results:
+            if result.error:
+                continue
+            source = next(img for name, img in images if name == result.filename)
+            annotated = draw_detections(source, result.detections)
+            path = save_annotated_image(
+                annotated,
+                filename_prefix=f"biodex_{Path(result.filename).stem}_",
+            )
+            annotated_paths.append((result.filename, path))
+
+        zip_path = None
+        if annotated_paths:
+            zip_path = export_batch_annotated_zip(
+                annotated_paths,
+                max_images=BATCH_ANNOTATED_ZIP_LIMIT,
+            )
+            for _, path in annotated_paths:
+                Path(path).unlink(missing_ok=True)
+
+        progress(1.0, desc="Batch analysis complete")
+
+        return (
+            stats_html,
+            batch_df,
+            "**Status:** Batch analysis complete.",
+            _enabled_download(csv_path),
+            _enabled_download(json_path),
+            _enabled_download(zip_path),
+        )
+
+    except gr.Error:
+        raise
+    except Exception as exc:
+        tb = traceback.format_exc()
+        raise gr.Error(
+            f"Batch analysis failed: {exc}\n\n"
             f"Details:\n```\n{tb}\n```"
         ) from exc
 
 
-APP_THEME = gr.themes.Soft(
-    primary_hue="green",
-    secondary_hue="emerald",
-    neutral_hue="gray",
-)
-
-
 def build_app() -> gr.Blocks:
     """Construct and return the Gradio Blocks application."""
-    with gr.Blocks(title="BioDex") as demo:
-        gr.HTML(
-            f"""
-            <div class="biodex-shell">
-              <div class="biodex-header">
-                <h1>BioDex — Local AI for Wildlife Camera Traps</h1>
-                <p class="biodex-tagline">
-                  Detect wildlife, filter blanks, identify species, and export results — 100% on your machine.
-                </p>
-                <div class="biodex-badge-row">
-                  <span class="biodex-badge biodex-badge-version">v{BIODEX_VERSION}</span>
-                  <span class="biodex-badge biodex-badge-privacy">Local only • Privacy-first</span>
-                </div>
-              </div>
-            </div>
-            """
-        )
+    settings = get_settings()
+    with gr.Blocks(title=f"BioDex v{BIODEX_VERSION}") as demo:
+        with gr.Column(elem_classes=["biodex-page"]):
+            gr.HTML(header_html())
+            gr.HTML(welcome_html())
 
-        with gr.Row():
-            with gr.Column(scale=1):
-                with gr.Group():
-                    input_image = gr.Image(
-                        label="Upload camera trap image",
+            with gr.Column(elem_classes=["biodex-section", "biodex-demo-section"]):
+                gr.Markdown("Demo Mode", elem_classes=["biodex-demo-title"])
+                gr.HTML(demo_tab_intro_html())
+                run_demo_btn = gr.Button(
+                    "Run Demo",
+                    variant="primary",
+                    size="lg",
+                    elem_classes=["biodex-run-demo-btn"],
+                )
+                demo_status = gr.Markdown(
+                    "**Status:** Ready — click **Run Demo** for a one-click walkthrough.",
+                    elem_classes=["biodex-status-wrap"],
+                )
+                demo_sample_note = gr.HTML("")
+
+                with gr.Row():
+                    demo_original = gr.Image(
+                        label="Original",
                         type="pil",
-                        sources=["upload"],
-                        height=320,
+                        interactive=False,
+                        height=360,
                     )
+                    demo_annotated = gr.Image(
+                        label="Annotated detections",
+                        type="pil",
+                        interactive=False,
+                        height=360,
+                    )
+
+                demo_stats = gr.HTML(label="Demo summary")
+                demo_results = gr.Dataframe(
+                    headers=RESULTS_COLUMNS,
+                    label="Detections",
+                    interactive=False,
+                    wrap=True,
+                )
+
+                gr.Markdown("Export demo results", elem_classes=["biodex-export-label"])
+                with gr.Row(elem_classes=["biodex-export-row"]):
+                    demo_dl_image = gr.DownloadButton(
+                        "Annotated image (PNG)",
+                        variant="secondary",
+                        interactive=False,
+                    )
+                    demo_dl_csv = gr.DownloadButton(
+                        "Detections (CSV)",
+                        variant="secondary",
+                        interactive=False,
+                    )
+                    demo_dl_json = gr.DownloadButton(
+                        "Results (JSON)",
+                        variant="secondary",
+                        interactive=False,
+                    )
+                    demo_dl_bundle = gr.DownloadButton(
+                        "Download All (ZIP)",
+                        variant="primary",
+                        interactive=False,
+                    )
+
+            with gr.Column(elem_classes=["biodex-section", "biodex-workspace"]):
+                gr.Markdown("### Analyze images", elem_classes=["biodex-section-title"])
+                gr.Markdown("Analysis settings", elem_classes=["biodex-settings-label"])
+                with gr.Row():
                     threshold = gr.Slider(
                         minimum=0.05,
                         maximum=0.95,
-                        value=0.25,
+                        value=settings.default_threshold,
                         step=0.05,
                         label="Confidence threshold",
                         info="Higher = fewer, more confident detections",
+                        scale=2,
                     )
-                    classify_species = gr.Checkbox(
-                        value=False,
-                        label="Enable species classification",
-                        info="Runs SpeciesNet on animal crops (~5–15s on CPU; downloads weights on first use)",
-                    )
-                    analyze_btn = gr.Button("Analyze Image", variant="primary", size="lg")
-
-            with gr.Column(scale=1):
+                classify_species = gr.Checkbox(
+                    value=settings.default_classify_species,
+                    label="Enable species classification (SpeciesNet)",
+                    info=SPECIES_TOGGLE_INFO,
+                )
                 gr.Markdown(
-                    """
-                    **Workflow**
-                    1. Upload a JPG or PNG camera trap image
-                    2. Adjust confidence threshold
-                    3. Optionally enable species classification
-                    4. Click **Analyze Image** and export results
-                    """
+                    "Runs locally on animal crops. Adds ~5–15s on CPU. "
+                    "Borderline predictions show alternatives in the results table.",
+                    elem_classes=["biodex-species-note"],
                 )
 
-        with gr.Row():
-            with gr.Column():
-                original_out = gr.Image(
-                    label="Original",
-                    type="pil",
-                    interactive=False,
-                    height=420,
-                )
-            with gr.Column():
-                annotated_out = gr.Image(
-                    label="Annotated detections",
-                    type="pil",
-                    interactive=False,
-                    height=420,
-                )
+                with gr.Tabs(elem_classes=["biodex-tabs"]):
+                    with gr.Tab("Single Image", elem_classes=["biodex-tab"]):
+                        with gr.Row():
+                            with gr.Column(scale=1):
+                                input_image = gr.Image(
+                                    label="Upload camera trap image",
+                                    type="pil",
+                                    sources=["upload"],
+                                    height=300,
+                                )
+                                sample_note = gr.HTML("")
+                                with gr.Row():
+                                    sample_btn = gr.Button(
+                                        "Load sample image",
+                                        size="sm",
+                                        elem_classes=["biodex-secondary-btn"],
+                                    )
+                                analyze_btn = gr.Button(
+                                    "Analyze Image",
+                                    variant="primary",
+                                    size="lg",
+                                    elem_classes=["biodex-primary-action"],
+                                )
+                                status_md = gr.Markdown(
+                                    "**Status:** Ready.",
+                                    elem_classes=["biodex-status-wrap"],
+                                )
 
-        stats_panel = gr.Markdown(label="Analysis summary")
-        results_table = gr.Dataframe(
-            headers=RESULTS_COLUMNS,
-            label="Detections",
-            interactive=False,
-            wrap=True,
-        )
+                            with gr.Column(scale=1):
+                                gr.Markdown(
+                                    """
+                                    **Tips**
+                                    - New here? Try **Run Demo** in the section above.
+                                    - Enable species classification to identify animals.
+                                    - Export PNG, CSV, JSON, or a ZIP bundle after analysis.
+                                    """,
+                                    elem_classes=["biodex-tab-tips"],
+                                )
 
-        gr.Markdown("### Export results")
-        with gr.Row():
-            download_image = gr.File(label="Annotated image (PNG)", visible=False)
-            download_csv = gr.File(label="Detections (CSV)", visible=False)
-            download_json = gr.File(label="Results (JSON)", visible=False)
+                        with gr.Row():
+                            original_out = gr.Image(
+                                label="Original",
+                                type="pil",
+                                interactive=False,
+                                height=400,
+                            )
+                            annotated_out = gr.Image(
+                                label="Annotated detections",
+                                type="pil",
+                                interactive=False,
+                                height=400,
+                            )
 
-        with gr.Accordion("How it works", open=False):
-            gr.Markdown(HOW_IT_WORKS)
+                        stats_panel = gr.HTML(label="Analysis summary")
+                        results_table = gr.Dataframe(
+                            headers=RESULTS_COLUMNS,
+                            label="Detections",
+                            interactive=False,
+                            wrap=True,
+                        )
 
-        gr.HTML(
-            """
-            <div class="biodex-footer">
-                Local only &nbsp;•&nbsp; Privacy-first &nbsp;•&nbsp; Open source
-            </div>
-            """
-        )
+                        gr.Markdown("Export results", elem_classes=["biodex-export-label"])
+                        with gr.Row(elem_classes=["biodex-export-row"]):
+                            download_image = gr.DownloadButton(
+                                "Annotated image (PNG)",
+                                variant="secondary",
+                                interactive=False,
+                            )
+                            download_csv = gr.DownloadButton(
+                                "Detections (CSV)",
+                                variant="secondary",
+                                interactive=False,
+                            )
+                            download_json = gr.DownloadButton(
+                                "Results (JSON)",
+                                variant="secondary",
+                                interactive=False,
+                            )
+                            download_bundle = gr.DownloadButton(
+                                "Download All (ZIP)",
+                                variant="primary",
+                                interactive=False,
+                            )
 
-        analyze_btn.click(
-            fn=analyze_image,
-            inputs=[input_image, threshold, classify_species],
-            outputs=[
-                original_out,
-                annotated_out,
-                stats_panel,
-                results_table,
-                download_image,
-                download_csv,
-                download_json,
-            ],
-            show_progress="full",
-        )
+                        sample_btn.click(
+                            fn=load_sample_only,
+                            outputs=[input_image, sample_note, status_md],
+                        )
+
+                        analyze_btn.click(
+                            fn=analyze_image,
+                            inputs=[input_image, threshold, classify_species],
+                            outputs=[
+                                original_out,
+                                annotated_out,
+                                sample_note,
+                                stats_panel,
+                                results_table,
+                                status_md,
+                                download_image,
+                                download_csv,
+                                download_json,
+                                download_bundle,
+                            ],
+                            show_progress="full",
+                        )
+
+                    with gr.Tab("Batch Folder", elem_classes=["biodex-tab"]):
+                        with gr.Row():
+                            with gr.Column(scale=1):
+                                batch_files = gr.File(
+                                    label="Upload multiple images",
+                                    file_count="multiple",
+                                    file_types=["image"],
+                                    type="filepath",
+                                )
+                                batch_btn = gr.Button(
+                                    "Analyze Batch",
+                                    variant="primary",
+                                    size="lg",
+                                    elem_classes=["biodex-primary-action"],
+                                )
+                                batch_status = gr.Markdown(
+                                    "**Status:** Ready.",
+                                    elem_classes=["biodex-status-wrap"],
+                                )
+                            with gr.Column(scale=1):
+                                gr.Markdown(
+                                    """
+                                    **Batch workflow**
+                                    1. Select multiple JPG/PNG files from a folder
+                                    2. Uses the shared threshold and species settings above
+                                    3. Review the summary table and export master CSV/JSON
+                                    4. Download annotated images ZIP (first 50 images)
+                                    """,
+                                    elem_classes=["biodex-tab-tips"],
+                                )
+
+                        batch_stats = gr.HTML(label="Batch summary")
+                        batch_table = gr.Dataframe(
+                            headers=BATCH_COLUMNS,
+                            label="Per-image results",
+                            interactive=False,
+                            wrap=True,
+                        )
+
+                        gr.Markdown("Batch export", elem_classes=["biodex-export-label"])
+                        with gr.Row(elem_classes=["biodex-export-row"]):
+                            batch_csv_btn = gr.DownloadButton(
+                                "Master CSV",
+                                variant="secondary",
+                                interactive=False,
+                            )
+                            batch_json_btn = gr.DownloadButton(
+                                "Master JSON",
+                                variant="secondary",
+                                interactive=False,
+                            )
+                            batch_zip_btn = gr.DownloadButton(
+                                "Annotated images ZIP",
+                                variant="primary",
+                                interactive=False,
+                            )
+
+                        batch_btn.click(
+                            fn=analyze_batch,
+                            inputs=[batch_files, threshold, classify_species],
+                            outputs=[
+                                batch_stats,
+                                batch_table,
+                                batch_status,
+                                batch_csv_btn,
+                                batch_json_btn,
+                                batch_zip_btn,
+                            ],
+                            show_progress="full",
+                        )
+
+            run_demo_btn.click(
+                fn=run_demo_mode,
+                outputs=[
+                    classify_species,
+                    demo_original,
+                    demo_annotated,
+                    demo_sample_note,
+                    demo_stats,
+                    demo_results,
+                    demo_status,
+                    demo_dl_image,
+                    demo_dl_csv,
+                    demo_dl_json,
+                    demo_dl_bundle,
+                ],
+                show_progress="full",
+            )
+
+            with gr.Accordion("How it works", open=False):
+                gr.Markdown(HOW_IT_WORKS)
+
+            gr.HTML(footer_html())
 
     return demo
 
 
 if __name__ == "__main__":
+    settings = get_settings()
+    host = settings.host
+    port = settings.port
+    print(f"BioDex v{BIODEX_VERSION} starting at http://{host}:{port}")
+    print("Open the app — Demo Mode is at the top, analysis tabs are in the workspace below.")
     app = build_app()
     app.launch(
-        server_name=os.getenv("BIODEX_HOST", "127.0.0.1"),
-        server_port=int(os.getenv("BIODEX_PORT", "7860")),
+        server_name=host,
+        server_port=port,
         theme=APP_THEME,
         css=CUSTOM_CSS,
     )

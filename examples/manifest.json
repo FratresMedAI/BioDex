@@ -1,0 +1,12 @@
+{
+  "samples": [
+    {
+      "id": "ocelot",
+      "file": "sample.jpg",
+      "title": "Ocelot (South America)",
+      "description": "Demonstrates animal detection and high-confidence species ID.",
+      "species_demo": true
+    }
+  ],
+  "default_sample_id": "ocelot"
+}
