@@ -54,6 +54,10 @@ BATCH_COLUMNS = [
     "Status",
 ]
 
+FIELD_TABLE_COLUMNS = ["File", "Animals", "Species", "Status"]
+
+FIELD_DETECTION_COLUMNS = ["Category", "Species", "Confidence"]
+
 
 def load_manifest() -> dict[str, Any]:
     """Load examples/manifest.json if present."""
@@ -132,74 +136,88 @@ def load_sample_image() -> tuple[Image.Image, str]:
 
 
 def demo_tab_intro_html() -> str:
-    """Render the Demo Mode introduction panel."""
-    sample = get_default_sample()
-    title = sample.get("title", "camera trap sample") if sample else "camera trap sample"
-    description = (
-        sample.get("description", "Detection and species classification demo.")
-        if sample
-        else "Detection and species classification demo."
-    )
-    return f"""
-    <div class="biodex-demo-hero">
-      <p>
-        One-click walkthrough on the bundled <strong>{title}</strong> image —
-        detection, species classification, and export, entirely on your machine.
-      </p>
-      <p class="biodex-demo-detail">{description}</p>
-      <span class="biodex-demo-callout">Expected: 1 animal · Ocelot · high confidence</span>
-    </div>
-    """
+    return ""
 
 
 def header_html() -> str:
-    """Render the BioDex page header."""
+    """Minimal field-review header."""
     return f"""
-    <div class="biodex-shell">
-      <div class="biodex-header">
-        <h1><span class="biodex-title-accent">BioDex</span> — Wildlife Camera Trap Analysis</h1>
-        <p class="biodex-tagline">
-          Detect wildlife, filter blanks, identify species, and export field-ready results —
-          privately, on your own computer.
-        </p>
-        <div class="biodex-badge-row">
-          <span class="biodex-badge biodex-badge-version">v{BIODEX_VERSION}</span>
-          <span class="biodex-badge biodex-badge-privacy">Local only · Privacy-first</span>
-        </div>
+    <div class="field-header">
+      <div class="field-header-main">
+        <span class="field-brand">BioDex</span>
+        <span class="field-title">Field Review</span>
+        <span class="field-version">v{BIODEX_VERSION}</span>
       </div>
+      <p class="field-tagline">Process a camera-trap folder · review detections · export field data</p>
     </div>
     """
 
 
 def welcome_html() -> str:
-    """Render the compact onboarding panel."""
-    return """
-    <div class="biodex-welcome">
-      <h3>Get started</h3>
-      <ol class="biodex-welcome-steps">
-        <li class="biodex-welcome-step">
-          <span class="biodex-welcome-step-num">1.</span>
-          Click <strong>Run Demo</strong> in the featured section below.
-        </li>
-        <li class="biodex-welcome-step">
-          <span class="biodex-welcome-step-num">2.</span>
-          Or upload images under <strong>Single Image</strong> or <strong>Batch Folder</strong>.
-        </li>
-        <li class="biodex-welcome-step">
-          <span class="biodex-welcome-step-num">3.</span>
-          Export annotated PNG, CSV, JSON, or a ZIP bundle when ready.
-        </li>
-      </ol>
-    </div>
-    """
+    return ""
 
 
 def footer_html() -> str:
-    return """
-    <div class="biodex-footer">
-        Local only &nbsp;•&nbsp; Privacy-first &nbsp;•&nbsp; Open source
-    </div>
-    """
+    return '<div class="field-footer">Local inference only · no cloud upload</div>'
+
+
+def format_field_batch_summary(batch: BatchResult) -> str:
+    """Tight aggregate panel aligned with batch_report.txt."""
+    blank_rate = (batch.blank_count / batch.total_images * 100) if batch.total_images else 0.0
+    multi_animal = sum(1 for result in batch.results if result.animal_count >= 2)
+    top_species = ""
+    if batch.species_counts:
+        ranked = sorted(batch.species_counts.items(), key=lambda item: item[1], reverse=True)[:4]
+        top_species = ", ".join(f"{name} ({count})" for name, count in ranked)
+
+    species_row = (
+        f'<div class="field-stat field-stat-species"><span class="field-stat-val">{top_species or "—"}</span>'
+        f'<span class="field-stat-lbl">Top species</span></div>'
+        if batch.species_enabled
+        else ""
+    )
+
+    return f"""
+<div class="field-summary">
+  <div class="field-stat"><span class="field-stat-val">{batch.total_images}</span><span class="field-stat-lbl">Images</span></div>
+  <div class="field-stat field-stat-animal"><span class="field-stat-val">{batch.animal_count}</span><span class="field-stat-lbl">Animals</span></div>
+  <div class="field-stat"><span class="field-stat-val">{multi_animal}</span><span class="field-stat-lbl">Multi-animal frames</span></div>
+  <div class="field-stat"><span class="field-stat-val">{blank_rate:.0f}%</span><span class="field-stat-lbl">Blanks</span></div>
+  <div class="field-stat"><span class="field-stat-val">{batch.total_detections}</span><span class="field-stat-lbl">Detections</span></div>
+  <div class="field-stat"><span class="field-stat-val">{len(batch.failed)}</span><span class="field-stat-lbl">Failed</span></div>
+  {species_row}
+</div>
+"""
+
+
+def build_field_batch_dataframe(batch: BatchResult) -> pd.DataFrame:
+    """Minimal per-image table for field review."""
+    rows = []
+    for result in batch.results:
+        rows.append(
+            [
+                result.filename,
+                result.animal_count,
+                _top_species_for_result(result) or "—",
+                "Failed" if result.error else ("Blank" if result.is_blank else "OK"),
+            ]
+        )
+    return pd.DataFrame(rows, columns=FIELD_TABLE_COLUMNS)
+
+
+def build_minimal_detections_dataframe(result: AnalysisResult) -> pd.DataFrame:
+    """Per-frame detection rows for the review panel."""
+    rows = []
+    for detection in result.detections:
+        species_label = detection.species.label if detection.species else "—"
+        rows.append(
+            [
+                detection.category.title(),
+                species_label,
+                f"{detection.confidence:.2f}",
+            ]
+        )
+    return pd.DataFrame(rows, columns=FIELD_DETECTION_COLUMNS)
 
 
 def _format_bbox(bbox: list[float]) -> str:

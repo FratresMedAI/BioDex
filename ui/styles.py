@@ -483,4 +483,126 @@ CUSTOM_CSS = """
 .gradio-container footer {
     opacity: 0.65;
 }
+
+/* ── Field review (minimal) ── */
+.gradio-container {
+    max-width: 1180px !important;
+}
+.field-header {
+    padding: 1.25rem 0 0.75rem;
+    border-bottom: 1px solid var(--bd-line);
+    margin-bottom: 0.5rem;
+}
+.field-header-main {
+    display: flex;
+    align-items: baseline;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+}
+.field-brand {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--bd-text);
+    text-transform: uppercase;
+}
+.field-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--bd-earth);
+}
+.field-version {
+    font-size: 0.75rem;
+    color: var(--bd-text-muted);
+    margin-left: auto;
+}
+.field-tagline {
+    margin: 0.35rem 0 0;
+    font-size: 0.88rem;
+    color: var(--bd-text-muted);
+}
+.field-action-bar {
+    padding: 0.75rem 0;
+    gap: 0.5rem;
+}
+.field-action-bar .gr-button-primary {
+    min-width: 10rem;
+}
+.field-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    padding: 0.85rem 0;
+    border-top: 1px solid var(--bd-border);
+    border-bottom: 1px solid var(--bd-border);
+    margin: 0.25rem 0 0.75rem;
+}
+.field-summary-empty {
+    color: var(--bd-text-muted);
+    font-size: 0.9rem;
+    padding: 0.5rem 0;
+}
+.field-stat {
+    display: flex;
+    flex-direction: column;
+    min-width: 4.5rem;
+}
+.field-stat-val {
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--bd-text);
+    font-variant-numeric: tabular-nums;
+}
+.field-stat-animal .field-stat-val {
+    color: var(--bd-moss);
+}
+.field-stat-lbl {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bd-text-muted);
+    margin-top: 0.15rem;
+}
+.field-stat-species {
+    flex: 1 1 100%;
+    min-width: 100%;
+}
+.field-stat-species .field-stat-val {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.field-review-label {
+    font-size: 0.85rem;
+    color: var(--bd-text-muted);
+    margin: 0.25rem 0 0.5rem;
+}
+.field-review-label strong {
+    color: var(--bd-text);
+}
+.field-image-panel .image-container,
+.field-image-panel img {
+    border-radius: 4px !important;
+    border: 1px solid var(--bd-line) !important;
+    background: #1a1a18 !important;
+}
+.field-image-panel .image-frame {
+    min-height: 420px !important;
+}
+.field-export-row {
+    padding: 0.5rem 0 0.75rem;
+    border-top: 1px solid var(--bd-border);
+}
+.field-footer {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--bd-text-muted);
+    padding: 1.5rem 0 0.5rem;
+    border-top: 1px solid var(--bd-border);
+    margin-top: 1rem;
+}
+.biodex-page .field-table-wrap .dataframe-wrap {
+    max-height: 220px;
+    overflow-y: auto !important;
+}
 """

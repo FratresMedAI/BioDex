@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import gradio as gr
+import pandas as pd
 from core.batch import run_batch
 from core.config import get_settings
 from core.detector import analyze_single_image
@@ -24,25 +25,28 @@ from core.exports import (
     export_json,
     save_annotated_image,
 )
-from core.types import BIODEX_VERSION
+from core.types import BIODEX_VERSION, AnalysisResult
 from core.visualization import draw_detections
 from PIL import Image
 from ui.components import (
-    BATCH_COLUMNS,
+    FIELD_DETECTION_COLUMNS,
+    FIELD_TABLE_COLUMNS,
     RESULTS_COLUMNS,
-    build_batch_dataframe,
+    build_field_batch_dataframe,
+    build_minimal_detections_dataframe,
     build_results_dataframe,
-    demo_tab_intro_html,
     footer_html,
-    format_batch_stats_html,
+    format_field_batch_summary,
     format_stats_html,
     header_html,
     load_sample_image,
-    welcome_html,
 )
 from ui.styles import APP_THEME, CUSTOM_CSS
 
-BATCH_ANNOTATED_ZIP_LIMIT = 50
+BATCH_ANNOTATED_ZIP_LIMIT = 100
+LILA_CACHE_DIR = Path.home() / ".cache" / "biodex" / "channel-islands-demo"
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
+EMPTY_FIELD_SUMMARY = '<div class="field-summary field-summary-empty">No batch processed yet.</div>'
 
 HOW_IT_WORKS = """
 ### How BioDex works
@@ -226,15 +230,22 @@ def analyze_batch(
     classify_species: bool,
     progress: Any = gr.Progress(),  # noqa: B008
 ) -> tuple[Any, ...]:
-    """Analyze multiple uploaded images."""
+    """Process an uploaded folder and prepare field-review outputs."""
     if not files:
-        raise gr.Error("Please upload one or more camera trap images.")
+        raise gr.Error("Select a camera-trap folder or load the LILA cache.")
 
     try:
+        paths = sorted(
+            Path(file_path)
+            for file_path in files
+            if Path(file_path).suffix.lower() in IMAGE_SUFFIXES
+        )
+        if not paths:
+            raise gr.Error("No JPG/PNG images found in the upload.")
+
         images: list[tuple[str, Image.Image]] = []
-        for file_path in files:
-            upload_path = Path(file_path)
-            images.append((upload_path.name, Image.open(upload_path).convert("RGB")))
+        for path in paths:
+            images.append((path.name, Image.open(path).convert("RGB")))
 
         def on_batch_progress(current: int, total: int, message: str) -> None:
             progress(current / total, desc=message)
@@ -246,330 +257,301 @@ def analyze_batch(
             progress_callback=on_batch_progress,
         )
 
-        stats_html = format_batch_stats_html(batch)
-        batch_df = build_batch_dataframe(batch)
+        review_state: list[dict[str, Any]] = []
+        for result, (name, image) in zip(batch.results, images, strict=True):
+            annotated = (
+                draw_detections(image, result.detections)
+                if not result.error
+                else image
+            )
+            review_state.append(
+                {
+                    "filename": name,
+                    "original": image,
+                    "annotated": annotated,
+                    "result": result,
+                }
+            )
+
+        first = _first_review_frame(review_state)
+        orig, ann, label, det_df = _frame_view(first)
+
         csv_path = batch_to_csv(batch)
         json_path = export_batch_json(batch)
-
         zip_path = build_batch_annotated_zip(
             batch,
             images,
             max_images=BATCH_ANNOTATED_ZIP_LIMIT,
         )
 
-        progress(1.0, desc="Batch analysis complete")
+        progress(1.0, desc="Batch complete")
+        status = (
+            f"**{batch.total_images}** images · **{batch.animal_count}** animals · "
+            f"**{sum(1 for r in batch.results if r.animal_count >= 2)}** multi-animal frames"
+        )
+        if batch.failed:
+            status += f" · **{len(batch.failed)}** failed"
 
         return (
-            stats_html,
-            batch_df,
-            "**Status:** Batch analysis complete.",
+            format_field_batch_summary(batch),
+            build_field_batch_dataframe(batch),
+            status,
             _enabled_download(csv_path),
             _enabled_download(json_path),
             _enabled_download(zip_path),
+            review_state,
+            orig,
+            ann,
+            label,
+            det_df,
         )
 
     except gr.Error:
         raise
     except Exception as exc:
         tb = traceback.format_exc()
+        raise gr.Error(f"Batch failed: {exc}\n\n```\n{tb}\n```") from exc
+
+
+def _first_review_frame(
+    review_state: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not review_state:
+        return None
+    for item in review_state:
+        result = cast(AnalysisResult, item["result"])
+        if result.animal_count > 0 and not result.error:
+            return item
+    return review_state[0]
+
+
+def _frame_view(
+    frame: dict[str, Any] | None,
+) -> tuple[Image.Image | None, Image.Image | None, str, pd.DataFrame]:
+    if frame is None:
+        return None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
+    result = cast(AnalysisResult, frame["result"])
+    label = (
+        f"**{frame['filename']}** — {result.animal_count} animals, "
+        f"{result.total} detections"
+    )
+    return (
+        cast(Image.Image, frame["original"]),
+        cast(Image.Image, frame["annotated"]),
+        label,
+        build_minimal_detections_dataframe(result),
+    )
+
+
+def load_lila_cache() -> tuple[list[str], str]:
+    """Load file paths from the local LILA demo cache."""
+    paths: list[Path] = []
+    if LILA_CACHE_DIR.is_dir():
+        for pattern in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
+            paths.extend(LILA_CACHE_DIR.glob(pattern))
+    files = sorted(str(path) for path in paths)
+    if not files:
         raise gr.Error(
-            f"Batch analysis failed: {exc}\n\n"
-            f"Details:\n```\n{tb}\n```"
-        ) from exc
+            "LILA cache empty. Run:\n  python -m scripts.demo_batch --prepare-only"
+        )
+    return files, f"Loaded **{len(files)}** images from LILA cache."
+
+
+def select_batch_frame(
+    review_state: list[dict[str, Any]] | None,
+    evt: gr.SelectData,
+) -> tuple[Any, ...]:
+    """Show original + annotated view for a selected table row."""
+    if not review_state or evt.index is None:
+        return None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
+    row = evt.index[0]
+    if row < 0 or row >= len(review_state):
+        return None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
+    orig, ann, label, det_df = _frame_view(review_state[row])
+    return orig, ann, label, det_df
+
+
+def clear_batch_review() -> tuple[Any, ...]:
+    """Reset the field review panel."""
+    empty_table = pd.DataFrame(columns=FIELD_TABLE_COLUMNS)
+    empty_det = pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
+    return (
+        EMPTY_FIELD_SUMMARY,
+        empty_table,
+        "Ready.",
+        _disabled_download(),
+        _disabled_download(),
+        _disabled_download(),
+        [],
+        None,
+        None,
+        "",
+        empty_det,
+    )
+
+
+def analyze_spot_check(
+    image: Image.Image | None,
+    threshold: float,
+    classify_species: bool,
+    progress: Any = gr.Progress(),  # noqa: B008
+) -> tuple[Any, ...]:
+    """Single-image analysis for the collapsed spot-check panel."""
+    results = analyze_image(
+        image,
+        threshold=threshold,
+        classify_species=classify_species,
+        progress=progress,
+    )
+    return results[0], results[1], results[3], results[4], results[5]
 
 
 def build_app() -> gr.Blocks:
-    """Construct and return the Gradio Blocks application."""
+    """Construct the minimalist field-review Gradio application."""
     settings = get_settings()
-    with gr.Blocks(title=f"BioDex v{BIODEX_VERSION}") as demo:
+    with gr.Blocks(title=f"BioDex Field Review v{BIODEX_VERSION}") as demo:
+        review_state = gr.State([])
+
         with gr.Column(elem_classes=["biodex-page"]):
             gr.HTML(header_html())
-            gr.HTML(welcome_html())
 
-            with gr.Column(elem_classes=["biodex-section", "biodex-demo-section"]):
-                gr.Markdown("Demo Mode", elem_classes=["biodex-demo-title"])
-                gr.HTML(demo_tab_intro_html())
-                run_demo_btn = gr.Button(
-                    "Run Demo",
-                    variant="primary",
-                    size="lg",
-                    elem_classes=["biodex-run-demo-btn"],
+            with gr.Row(elem_classes=["field-action-bar"]):
+                batch_files = gr.File(
+                    label="Camera-trap folder",
+                    file_count="directory",
+                    file_types=["image"],
+                    type="filepath",
+                    scale=3,
                 )
-                demo_status = gr.Markdown(
-                    "**Status:** Ready — click **Run Demo** for a one-click walkthrough.",
-                    elem_classes=["biodex-status-wrap"],
+                load_cache_btn = gr.Button("Load LILA cache", scale=1)
+                batch_btn = gr.Button("Process Folder", variant="primary", scale=1)
+                clear_btn = gr.Button("Clear", scale=1)
+
+            batch_status = gr.Markdown("Select a folder or load the LILA cache.", elem_classes=["field-review-label"])
+
+            with gr.Accordion("Settings", open=False):
+                threshold = gr.Slider(
+                    minimum=0.05,
+                    maximum=0.95,
+                    value=settings.default_threshold,
+                    step=0.05,
+                    label="Confidence threshold",
                 )
-                demo_sample_note = gr.HTML("")
+                classify_species = gr.Checkbox(
+                    value=True,
+                    label="Species classification (SpeciesNet)",
+                )
 
-                with gr.Row():
-                    demo_original = gr.Image(
-                        label="Original",
-                        type="pil",
-                        interactive=False,
-                        height=360,
-                    )
-                    demo_annotated = gr.Image(
-                        label="Annotated detections",
-                        type="pil",
-                        interactive=False,
-                        height=360,
-                    )
+            batch_stats = gr.HTML(EMPTY_FIELD_SUMMARY)
 
-                demo_stats = gr.HTML(label="Demo summary")
-                demo_results = gr.Dataframe(
-                    headers=RESULTS_COLUMNS,
-                    label="Detections",
+            frame_label = gr.Markdown("", elem_classes=["field-review-label"])
+            with gr.Row(elem_classes=["field-image-panel"]):
+                review_original = gr.Image(
+                    label="Original",
+                    type="pil",
+                    interactive=False,
+                    height=480,
+                    elem_classes=["field-image-panel"],
+                )
+                review_annotated = gr.Image(
+                    label="Annotated",
+                    type="pil",
+                    interactive=False,
+                    height=480,
+                    elem_classes=["field-image-panel"],
+                )
+
+            with gr.Column(elem_classes=["field-table-wrap"]):
+                batch_table = gr.Dataframe(
+                    headers=FIELD_TABLE_COLUMNS,
+                    label="Frames — click a row to review",
                     interactive=False,
                     wrap=True,
                 )
 
-                gr.Markdown("Export demo results", elem_classes=["biodex-export-label"])
-                with gr.Row(elem_classes=["biodex-export-row"]):
-                    demo_dl_image = gr.DownloadButton(
-                        "Annotated image (PNG)",
-                        variant="secondary",
-                        interactive=False,
-                    )
-                    demo_dl_csv = gr.DownloadButton(
-                        "Detections (CSV)",
-                        variant="secondary",
-                        interactive=False,
-                    )
-                    demo_dl_json = gr.DownloadButton(
-                        "Results (JSON)",
-                        variant="secondary",
-                        interactive=False,
-                    )
-                    demo_dl_bundle = gr.DownloadButton(
-                        "Download All (ZIP)",
-                        variant="primary",
-                        interactive=False,
-                    )
+            frame_detections = gr.Dataframe(
+                headers=FIELD_DETECTION_COLUMNS,
+                label="Detections in selected frame",
+                interactive=False,
+                wrap=True,
+            )
 
-            with gr.Column(elem_classes=["biodex-section", "biodex-workspace"]):
-                gr.Markdown("### Analyze images", elem_classes=["biodex-section-title"])
-                gr.Markdown("Analysis settings", elem_classes=["biodex-settings-label"])
+            with gr.Row(elem_classes=["field-export-row"]):
+                batch_csv_btn = gr.DownloadButton("Master CSV", interactive=False)
+                batch_json_btn = gr.DownloadButton("Master JSON", interactive=False)
+                batch_zip_btn = gr.DownloadButton("Annotated ZIP", variant="primary", interactive=False)
+
+            with gr.Accordion("Single-image spot check", open=False):
                 with gr.Row():
-                    threshold = gr.Slider(
-                        minimum=0.05,
-                        maximum=0.95,
-                        value=settings.default_threshold,
-                        step=0.05,
-                        label="Confidence threshold",
-                        info="Higher = fewer, more confident detections",
-                        scale=2,
-                    )
-                classify_species = gr.Checkbox(
-                    value=settings.default_classify_species,
-                    label="Enable species classification (SpeciesNet)",
-                    info=SPECIES_TOGGLE_INFO,
-                )
-                gr.Markdown(
-                    "Runs locally on animal crops. Adds ~5–15s on CPU. "
-                    "Borderline predictions show alternatives in the results table.",
-                    elem_classes=["biodex-species-note"],
-                )
+                    input_image = gr.Image(label="Upload one image", type="pil", height=240)
+                    analyze_one_btn = gr.Button("Analyze", variant="secondary")
+                with gr.Row():
+                    spot_original = gr.Image(label="Original", type="pil", interactive=False, height=280)
+                    spot_annotated = gr.Image(label="Annotated", type="pil", interactive=False, height=280)
+                spot_stats = gr.HTML("")
+                spot_table = gr.Dataframe(headers=RESULTS_COLUMNS, interactive=False, wrap=True)
 
-                with gr.Tabs(elem_classes=["biodex-tabs"]):
-                    with gr.Tab("Single Image", elem_classes=["biodex-tab"]):
-                        with gr.Row():
-                            with gr.Column(scale=1):
-                                input_image = gr.Image(
-                                    label="Upload camera trap image",
-                                    type="pil",
-                                    sources=["upload"],
-                                    height=300,
-                                )
-                                sample_note = gr.HTML("")
-                                with gr.Row():
-                                    sample_btn = gr.Button(
-                                        "Load sample image",
-                                        size="sm",
-                                        elem_classes=["biodex-secondary-btn"],
-                                    )
-                                analyze_btn = gr.Button(
-                                    "Analyze Image",
-                                    variant="primary",
-                                    size="lg",
-                                    elem_classes=["biodex-primary-action"],
-                                )
-                                status_md = gr.Markdown(
-                                    "**Status:** Ready.",
-                                    elem_classes=["biodex-status-wrap"],
-                                )
+            gr.HTML(footer_html())
 
-                            with gr.Column(scale=1):
-                                gr.Markdown(
-                                    """
-                                    **Tips**
-                                    - New here? Try **Run Demo** in the section above.
-                                    - Enable species classification to identify animals.
-                                    - Export PNG, CSV, JSON, or a ZIP bundle after analysis.
-                                    """,
-                                    elem_classes=["biodex-tab-tips"],
-                                )
+            load_cache_btn.click(
+                fn=load_lila_cache,
+                outputs=[batch_files, batch_status],
+            )
 
-                        with gr.Row():
-                            original_out = gr.Image(
-                                label="Original",
-                                type="pil",
-                                interactive=False,
-                                height=400,
-                            )
-                            annotated_out = gr.Image(
-                                label="Annotated detections",
-                                type="pil",
-                                interactive=False,
-                                height=400,
-                            )
-
-                        stats_panel = gr.HTML(label="Analysis summary")
-                        results_table = gr.Dataframe(
-                            headers=RESULTS_COLUMNS,
-                            label="Detections",
-                            interactive=False,
-                            wrap=True,
-                        )
-
-                        gr.Markdown("Export results", elem_classes=["biodex-export-label"])
-                        with gr.Row(elem_classes=["biodex-export-row"]):
-                            download_image = gr.DownloadButton(
-                                "Annotated image (PNG)",
-                                variant="secondary",
-                                interactive=False,
-                            )
-                            download_csv = gr.DownloadButton(
-                                "Detections (CSV)",
-                                variant="secondary",
-                                interactive=False,
-                            )
-                            download_json = gr.DownloadButton(
-                                "Results (JSON)",
-                                variant="secondary",
-                                interactive=False,
-                            )
-                            download_bundle = gr.DownloadButton(
-                                "Download All (ZIP)",
-                                variant="primary",
-                                interactive=False,
-                            )
-
-                        sample_btn.click(
-                            fn=load_sample_only,
-                            outputs=[input_image, sample_note, status_md],
-                        )
-
-                        analyze_btn.click(
-                            fn=analyze_image,
-                            inputs=[input_image, threshold, classify_species],
-                            outputs=[
-                                original_out,
-                                annotated_out,
-                                sample_note,
-                                stats_panel,
-                                results_table,
-                                status_md,
-                                download_image,
-                                download_csv,
-                                download_json,
-                                download_bundle,
-                            ],
-                            show_progress="full",
-                        )
-
-                    with gr.Tab("Batch Folder", elem_classes=["biodex-tab"]):
-                        with gr.Row():
-                            with gr.Column(scale=1):
-                                batch_files = gr.File(
-                                    label="Upload multiple images",
-                                    file_count="multiple",
-                                    file_types=["image"],
-                                    type="filepath",
-                                )
-                                batch_btn = gr.Button(
-                                    "Analyze Batch",
-                                    variant="primary",
-                                    size="lg",
-                                    elem_classes=["biodex-primary-action"],
-                                )
-                                batch_status = gr.Markdown(
-                                    "**Status:** Ready.",
-                                    elem_classes=["biodex-status-wrap"],
-                                )
-                            with gr.Column(scale=1):
-                                gr.Markdown(
-                                    """
-                                    **Batch workflow**
-                                    1. Select multiple JPG/PNG files from a folder
-                                    2. Uses the shared threshold and species settings above
-                                    3. Review the summary table and export master CSV/JSON
-                                    4. Download annotated images ZIP (first 50 images)
-                                    """,
-                                    elem_classes=["biodex-tab-tips"],
-                                )
-
-                        batch_stats = gr.HTML(label="Batch summary")
-                        batch_table = gr.Dataframe(
-                            headers=BATCH_COLUMNS,
-                            label="Per-image results",
-                            interactive=False,
-                            wrap=True,
-                        )
-
-                        gr.Markdown("Batch export", elem_classes=["biodex-export-label"])
-                        with gr.Row(elem_classes=["biodex-export-row"]):
-                            batch_csv_btn = gr.DownloadButton(
-                                "Master CSV",
-                                variant="secondary",
-                                interactive=False,
-                            )
-                            batch_json_btn = gr.DownloadButton(
-                                "Master JSON",
-                                variant="secondary",
-                                interactive=False,
-                            )
-                            batch_zip_btn = gr.DownloadButton(
-                                "Annotated images ZIP",
-                                variant="primary",
-                                interactive=False,
-                            )
-
-                        batch_btn.click(
-                            fn=analyze_batch,
-                            inputs=[batch_files, threshold, classify_species],
-                            outputs=[
-                                batch_stats,
-                                batch_table,
-                                batch_status,
-                                batch_csv_btn,
-                                batch_json_btn,
-                                batch_zip_btn,
-                            ],
-                            show_progress="full",
-                        )
-
-            run_demo_btn.click(
-                fn=run_demo_mode,
+            batch_btn.click(
+                fn=analyze_batch,
+                inputs=[batch_files, threshold, classify_species],
                 outputs=[
-                    classify_species,
-                    demo_original,
-                    demo_annotated,
-                    demo_sample_note,
-                    demo_stats,
-                    demo_results,
-                    demo_status,
-                    demo_dl_image,
-                    demo_dl_csv,
-                    demo_dl_json,
-                    demo_dl_bundle,
+                    batch_stats,
+                    batch_table,
+                    batch_status,
+                    batch_csv_btn,
+                    batch_json_btn,
+                    batch_zip_btn,
+                    review_state,
+                    review_original,
+                    review_annotated,
+                    frame_label,
+                    frame_detections,
                 ],
                 show_progress="full",
             )
 
-            with gr.Accordion("How it works", open=False):
-                gr.Markdown(HOW_IT_WORKS)
+            batch_table.select(
+                fn=select_batch_frame,
+                inputs=[review_state],
+                outputs=[review_original, review_annotated, frame_label, frame_detections],
+            )
 
-            gr.HTML(footer_html())
+            clear_btn.click(
+                fn=clear_batch_review,
+                outputs=[
+                    batch_stats,
+                    batch_table,
+                    batch_status,
+                    batch_csv_btn,
+                    batch_json_btn,
+                    batch_zip_btn,
+                    review_state,
+                    review_original,
+                    review_annotated,
+                    frame_label,
+                    frame_detections,
+                ],
+            )
+
+            analyze_one_btn.click(
+                fn=analyze_spot_check,
+                inputs=[input_image, threshold, classify_species],
+                outputs=[
+                    spot_original,
+                    spot_annotated,
+                    spot_stats,
+                    spot_table,
+                    batch_status,
+                ],
+                show_progress="full",
+            )
 
     return cast(gr.Blocks, demo)
 
@@ -579,8 +561,8 @@ def launch_app() -> None:
     settings = get_settings()
     host = settings.host
     port = settings.port
-    print(f"BioDex v{BIODEX_VERSION} starting at http://{host}:{port}")
-    print("Open the app — Demo Mode is at the top, analysis tabs are in the workspace below.")
+    print(f"BioDex Field Review v{BIODEX_VERSION} at http://{host}:{port}")
+    print("Load a folder or click Load LILA cache, then Process Folder.")
     app = build_app()
     app.launch(
         server_name=host,
