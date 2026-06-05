@@ -171,11 +171,17 @@ def _species_status_html(level: str, message: str) -> str:
     )
 
 
+SPECIES_STATUS_INITIAL = _species_status_html(
+    "loading",
+    "SpeciesNet loads on first Process Folder run.",
+)
+
+
 def probe_speciesnet(*, active: bool) -> str:
     """
     Check whether SpeciesNet can run and return a friendly HTML status line.
 
-    Does not run inference — only verifies install/load readiness.
+    Does not load the model — that happens during Process Folder.
     """
     if not active:
         return _species_status_html(
@@ -190,12 +196,16 @@ def probe_speciesnet(*, active: bool) -> str:
             "SpeciesNet not installed — run: pip install -e \".[models,ui]\"",
         )
     try:
-        from core.classifier import get_classifier
+        from core.classifier import is_classifier_loaded
 
-        get_classifier()
+        if is_classifier_loaded():
+            return _species_status_html(
+                "ok",
+                "SpeciesNet ready — labels appear on annotations and detection tables.",
+            )
         return _species_status_html(
-            "ok",
-            "SpeciesNet ready — labels appear on annotations and detection tables.",
+            "loading",
+            "SpeciesNet loads on first Process Folder run.",
         )
     except RuntimeError as exc:
         message = str(exc)

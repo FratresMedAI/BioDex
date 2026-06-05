@@ -32,6 +32,11 @@ _classifier = None
 _classifier_error: str | None = None
 
 
+def is_classifier_loaded() -> bool:
+    """Return True when SpeciesNet has been loaded in this process."""
+    return _classifier is not None
+
+
 def get_classifier() -> Any:
     """
     Return a cached SpeciesNetClassifier instance.

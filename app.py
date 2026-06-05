@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import threading
 import traceback
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
 
@@ -44,12 +45,15 @@ from ui.components import (
     format_stats_html,
     header_html,
     load_sample_image,
+    SPECIES_STATUS_INITIAL,
     probe_speciesnet,
 )
 from ui.styles import APP_THEME, CUSTOM_CSS
 
 BATCH_ANNOTATED_ZIP_LIMIT = 100
+QUICK_DEMO_IMAGE_LIMIT = 18
 LILA_CACHE_DIR = Path.home() / ".cache" / "biodex" / "channel-islands-demo"
+FAVICON_PATH = Path(__file__).resolve().parent / "ui" / "favicon.png"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 logger = logging.getLogger(__name__)
 
@@ -272,13 +276,24 @@ def _empty_batch_response(message: str) -> tuple[Any, ...]:
     )
 
 
+def _sample_paths(paths: list[Path], limit: int) -> list[Path]:
+    """Spread-sample paths for a fast demo run with variety across the folder."""
+    if len(paths) <= limit:
+        return paths
+    step = max(1, len(paths) // limit)
+    return paths[::step][:limit]
+
+
 def analyze_batch(
     files: list[str] | None,
     cache_paths: list[str] | None,
     threshold: float,
     classify_species: bool,
     progress: Any = gr.Progress(),  # noqa: B008
-) -> tuple[Any, ...]:
+    *,
+    max_images: int | None = None,
+    demo_mode: bool = False,
+) -> Iterator[tuple[Any, ...]]:
     """Process an uploaded folder and prepare field-review outputs."""
     paths = _resolve_batch_paths(files, cache_paths)
     if not paths:
@@ -287,6 +302,8 @@ def analyze_batch(
         )
 
     try:
+        if max_images is not None:
+            paths = _sample_paths(paths, max_images)
         total_paths = len(paths)
         progress(0.0, desc="Loading MegaDetector…")
         warmup_models(species=classify_species)
@@ -306,9 +323,9 @@ def analyze_batch(
             message: str,
             fraction: float | None = None,
         ) -> None:
-            # Reserve ~3% for model/read; map image work into 3–100%.
+            # Inference uses ~3–92%; exports/ZIP use the remainder.
             image_frac = fraction if fraction is not None else current / total
-            progress(0.03 + 0.97 * image_frac, desc=message)
+            progress(0.03 + 0.89 * image_frac, desc=message)
 
         batch = run_batch(
             images,
@@ -317,18 +334,13 @@ def analyze_batch(
             progress_callback=on_batch_progress,
         )
 
+        path_by_name = {path.name: path for path in paths}
         review_state: list[dict[str, Any]] = []
-        for result, (name, image) in zip(batch.results, images, strict=True):
-            annotated = (
-                draw_detections(image, result.detections)
-                if not result.error
-                else image
-            )
+        for result, (name, _image) in zip(batch.results, images, strict=True):
             review_state.append(
                 {
                     "filename": name,
-                    "original": image,
-                    "annotated": annotated,
+                    "source_path": str(path_by_name[name]),
                     "result": result,
                 }
             )
@@ -336,19 +348,12 @@ def analyze_batch(
         first = _first_review_frame(review_state)
         orig, ann, label, det_df = _frame_view(first)
 
-        csv_path = batch_to_csv(batch)
-        json_path = export_batch_json(batch)
-        zip_path = build_batch_annotated_zip(
-            batch,
-            images,
-            max_images=BATCH_ANNOTATED_ZIP_LIMIT,
-        )
-
-        progress(1.0, desc="Batch complete")
         status = (
             f"**{batch.total_images}** images · **{batch.animal_count}** animals · "
             f"**{sum(1 for r in batch.results if r.animal_count >= 2)}** multi-animal frames"
         )
+        if demo_mode:
+            status += " · *quick demo preview*"
         if batch.failed:
             status += f" · **{len(batch.failed)}** failed"
         if batch.species_enabled and batch.species_counts:
@@ -357,20 +362,50 @@ def analyze_batch(
                 f"{name} ({count})" for name, count in ranked
             )
 
-        return (
+        progress(0.93, desc="Writing CSV/JSON…")
+        csv_path = batch_to_csv(batch)
+        json_path = export_batch_json(batch)
+
+        # Show results immediately; build the heavy annotated ZIP afterward.
+        yield (
             format_field_batch_summary(batch),
             build_field_batch_dataframe(batch),
             status,
             batch_species_status_html(batch),
             _enabled_download(csv_path),
             _enabled_download(json_path),
-            _enabled_download(zip_path),
+            _disabled_download(),
             review_state,
             orig,
             ann,
             label,
             det_df,
         )
+
+        if not demo_mode:
+            progress(0.95, desc="Building annotated ZIP…")
+            zip_path = build_batch_annotated_zip(
+                batch,
+                images,
+                max_images=BATCH_ANNOTATED_ZIP_LIMIT,
+            )
+            progress(1.0, desc="Batch complete")
+            yield (
+                format_field_batch_summary(batch),
+                build_field_batch_dataframe(batch),
+                status,
+                batch_species_status_html(batch),
+                _enabled_download(csv_path),
+                _enabled_download(json_path),
+                _enabled_download(zip_path),
+                review_state,
+                orig,
+                ann,
+                label,
+                det_df,
+            )
+        else:
+            progress(1.0, desc="Quick demo complete")
 
     except gr.Error:
         raise
@@ -391,6 +426,20 @@ def _first_review_frame(
     return review_state[0]
 
 
+def _load_frame_images(frame: dict[str, Any]) -> tuple[Image.Image, Image.Image]:
+    """Load original + annotated views on demand (keeps review state small)."""
+    result = cast(AnalysisResult, frame["result"])
+    source_path = frame.get("source_path")
+    if source_path:
+        image = Image.open(source_path).convert("RGB")
+    else:
+        image = cast(Image.Image, frame["original"])
+    if result.error:
+        return image, image
+    annotated = draw_detections(image, result.detections)
+    return image, annotated
+
+
 def _frame_view(
     frame: dict[str, Any] | None,
 ) -> tuple[Image.Image | None, Image.Image | None, str, pd.DataFrame]:
@@ -407,9 +456,10 @@ def _frame_view(
             label += f" · species: **{top_species}**"
         elif result.species_warning:
             label += f" · *{result.species_warning}*"
+    original, annotated = _load_frame_images(frame)
     return (
-        cast(Image.Image, frame["original"]),
-        cast(Image.Image, frame["annotated"]),
+        original,
+        annotated,
         label,
         build_minimal_detections_dataframe(result),
     )
@@ -429,7 +479,7 @@ def load_lila_cache() -> tuple[list[str], str]:
     _start_model_warmup(species=True)
     return (
         files,
-        f"**{len(files)}** images loaded — enable SpeciesNet above, then Process Folder.",
+        f"**{len(files)}** images loaded — **Quick demo** for screenshots, or **Process Folder** for full run.",
     )
 
 
@@ -465,6 +515,24 @@ def clear_batch_review() -> tuple[Any, ...]:
         "",
         empty_det,
         [],
+    )
+
+
+def run_quick_demo(
+    files: list[str] | None,
+    cache_paths: list[str] | None,
+    threshold: float,
+    progress: Any = gr.Progress(),  # noqa: B008
+) -> Iterator[tuple[Any, ...]]:
+    """Fast detection-only preview for screenshots (~1 min on CPU)."""
+    yield from analyze_batch(
+        files,
+        cache_paths,
+        threshold,
+        classify_species=False,
+        progress=progress,
+        max_images=QUICK_DEMO_IMAGE_LIMIT,
+        demo_mode=True,
     )
 
 
@@ -505,11 +573,12 @@ def build_app() -> gr.Blocks:
 
             with gr.Row(elem_classes=["field-action-bar"]):
                 load_cache_btn = gr.Button("Load LILA cache", scale=1, size="lg")
+                quick_demo_btn = gr.Button("Quick demo", variant="secondary", scale=1, size="lg")
                 batch_btn = gr.Button("Process Folder", variant="primary", scale=2, size="lg")
                 clear_btn = gr.Button("Clear", scale=1)
 
             batch_status = gr.Markdown(
-                "Load LILA cache → Process Folder",
+                "Load LILA → **Quick demo** (~1 min, for screenshots) · **Process Folder** (full drop-and-leave)",
                 elem_classes=["field-status-line"],
             )
 
@@ -520,7 +589,7 @@ def build_app() -> gr.Blocks:
                     scale=0,
                 )
                 species_status = gr.HTML(
-                    probe_speciesnet(active=True),
+                    SPECIES_STATUS_INITIAL,
                     elem_classes=["field-species-status"],
                 )
 
@@ -590,11 +659,6 @@ def build_app() -> gr.Blocks:
 
             gr.HTML(footer_html())
 
-            demo.load(
-                fn=refresh_species_status,
-                inputs=[classify_species],
-                outputs=[species_status],
-            )
             classify_species.change(
                 fn=refresh_species_status,
                 inputs=[classify_species],
@@ -604,6 +668,26 @@ def build_app() -> gr.Blocks:
             load_cache_btn.click(
                 fn=load_lila_cache,
                 outputs=[batch_paths_state, batch_status],
+            )
+
+            quick_demo_btn.click(
+                fn=run_quick_demo,
+                inputs=[batch_files, batch_paths_state, threshold],
+                outputs=[
+                    batch_stats,
+                    batch_table,
+                    batch_status,
+                    species_status,
+                    batch_csv_btn,
+                    batch_json_btn,
+                    batch_zip_btn,
+                    review_state,
+                    review_original,
+                    review_annotated,
+                    frame_label,
+                    frame_detections,
+                ],
+                show_progress="minimal",
             )
 
             batch_btn.click(
@@ -623,7 +707,7 @@ def build_app() -> gr.Blocks:
                     frame_label,
                     frame_detections,
                 ],
-                show_progress="full",
+                show_progress="minimal",
             )
 
             batch_table.select(
@@ -661,7 +745,7 @@ def build_app() -> gr.Blocks:
                     spot_table,
                     batch_status,
                 ],
-                show_progress="full",
+                show_progress="minimal",
             )
 
     return cast(gr.Blocks, demo)
@@ -692,15 +776,18 @@ def launch_app() -> None:
     if settings.enable_queue:
         app.queue(default_concurrency_limit=2)
     biodex_cache = Path.home() / ".cache" / "biodex"
-    app.launch(
-        server_name=host,
-        server_port=port,
-        theme=APP_THEME,
-        css=CUSTOM_CSS,
-        auth=settings.gradio_auth,
-        show_error=True,
-        allowed_paths=[str(biodex_cache), str(LILA_CACHE_DIR)],
-    )
+    launch_kwargs: dict[str, Any] = {
+        "server_name": host,
+        "server_port": port,
+        "theme": APP_THEME,
+        "css": CUSTOM_CSS,
+        "auth": settings.gradio_auth,
+        "show_error": True,
+        "allowed_paths": [str(biodex_cache), str(LILA_CACHE_DIR)],
+    }
+    if FAVICON_PATH.is_file():
+        launch_kwargs["favicon_path"] = str(FAVICON_PATH)
+    app.launch(**launch_kwargs)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ would shadow that module and break detection.
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections.abc import Callable
 from typing import Any
@@ -310,6 +311,13 @@ def run_detection(image: Image.Image, threshold: float = 0.25) -> AnalysisResult
 
 def warmup_models(*, species: bool = False) -> None:
     """Eager-load MegaDetector (and optionally SpeciesNet) before the first frame."""
+    try:
+        import torch
+
+        threads = min(8, os.cpu_count() or 4)
+        torch.set_num_threads(threads)
+    except Exception:
+        pass
     get_detector()
     if species:
         from core.classifier import get_classifier
