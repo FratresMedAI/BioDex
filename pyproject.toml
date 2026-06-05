@@ -57,7 +57,7 @@ packages = ["core", "ui", "desktop"]
 [tool.ruff]
 target-version = "py310"
 line-length = 100
-src = ["core", "ui", "desktop", "demo", "scripts", "tests", "app.py"]
+src = ["core", "ui", "desktop", "scripts", "tests", "app.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
@@ -65,8 +65,6 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "app.py" = ["B008", "SIM117"]
-"demo/app.py" = ["B008", "E402", "I001"]
-"demo/limits.py" = ["B008", "I001"]
 "core/cli.py" = ["B008"]
 "core/exports.py" = ["SIM115"]
 "core/__init__.py" = ["F401"]
@@ -110,8 +108,4 @@ check_untyped_defs = false
 
 [[tool.mypy.overrides]]
 module = "desktop.*"
-disallow_untyped_defs = false
-
-[[tool.mypy.overrides]]
-module = "demo.*"
 disallow_untyped_defs = false

@@ -33,7 +33,6 @@ def test_configure_data_dirs_sets_cache_env(tmp_path: Path) -> None:
         configure_data_dirs(data_dir)
         assert os.environ["TORCH_HOME"] == str(data_dir / "torch")
         assert os.environ["XDG_CACHE_HOME"] == str(data_dir / "cache")
-        assert os.environ["HF_HOME"] == str(data_dir / "huggingface")
 
 
 def test_frozen_bundle_inserts_meipass_on_path(tmp_path: Path) -> None:

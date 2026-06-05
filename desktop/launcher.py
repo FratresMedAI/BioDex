@@ -31,7 +31,6 @@ def configure_data_dirs(data_dir: Path) -> None:
     data_dir.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("TORCH_HOME", str(data_dir / "torch"))
     os.environ.setdefault("XDG_CACHE_HOME", str(data_dir / "cache"))
-    os.environ.setdefault("HF_HOME", str(data_dir / "huggingface"))
 
 
 def _setup_logging(data_dir: Path) -> logging.Logger:

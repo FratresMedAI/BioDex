@@ -1,6 +1,6 @@
 # Example images
 
-**Not the product demo.** Local users and the public HF demo use folder batch workflows. The files here are **smoke-test / spot-check thumbs only** (6 images).
+**Not the product demo.** Local users should use folder batch workflows. The files here are **smoke-test / spot-check thumbs only** (6 images).
 
 Two tiers of local data:
 

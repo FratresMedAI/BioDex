@@ -26,20 +26,6 @@ Your browser opens **http://127.0.0.1:7860**. Upload a folder of images → **Pr
 
 First analysis downloads models once (~500 MB). After that, everything stays offline on your computer.
 
----
-
-## Try online (limited preview)
-
-**[Open the demo on Hugging Face](https://huggingface.co/spaces/Fratres-X-AI/BioDex)** — quick look in your browser only.
-
-- Max **30 images** per batch
-- **No** ZIP export
-- Runs on shared servers — **not private**
-
-For real work with your own data, use **Run locally** above.
-
----
-
 <details>
 <summary><strong>Power users — batch CLI</strong></summary>
 
@@ -59,7 +45,7 @@ biodex batch /path/to/images -o ./results --classify-species --recursive
 ```bash
 pip install -e ".[ui,models,dev]"
 pytest tests/ -v -m "not slow"
-ruff check core app.py ui demo
+ruff check core app.py ui
 ```
 
 </details>
