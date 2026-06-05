@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install CUDA-enabled PyTorch for RunPod / NVIDIA (H100, L40S, etc.).
+# Install CUDA-enabled PyTorch for local NVIDIA GPUs (H100, L40S, desktop/laptop, etc.).
 # Use when default torch reports: CUDA driver too old / GPU available: False
 # Usage: source .venv/bin/activate && bash scripts/setup_gpu.sh
 set -euo pipefail

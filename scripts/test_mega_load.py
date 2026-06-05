@@ -1,4 +1,4 @@
-"""Quick MegaDetector load check (RunPod / CI smoke)."""
+"""Quick MegaDetector load check (local GPU smoke test / CI)."""
 
 from __future__ import annotations
 

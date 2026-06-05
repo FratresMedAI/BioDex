@@ -3,10 +3,10 @@
 # DO NOT run plain `pip install -r requirements.txt` on a fresh venv — it will fail
 # with ResolutionImpossible (megadetector/yolov5 protobuf<=3.20.1 vs onnx/speciesnet).
 #
-# Recommended install (local or RunPod):
+# Recommended install (any local machine):
 #   bash scripts/install_biodex.sh
 #
-# GPU (H100 / RunPod after install):
+# Optional NVIDIA GPU (after install):
 #   source .venv/bin/activate && bash scripts/setup_gpu.sh
 #
 # Manual order (same as install_biodex.sh):

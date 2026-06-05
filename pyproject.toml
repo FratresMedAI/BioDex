@@ -35,22 +35,29 @@ dev = [
     "mypy>=1.10",
     "types-Pillow",
 ]
+desktop = [
+    "pyinstaller>=6.0",
+]
 
 [project.scripts]
 biodex = "core.cli:main"
 biodex-ui = "core.ui_entry:main"
+biodex-desktop = "desktop.launcher:main"
 
 [tool.hatch.version]
 path = "core/types.py"
 pattern = "BIODEX_VERSION = \"(?P<version>[^\"]+)\""
 
 [tool.hatch.build.targets.wheel]
-packages = ["core", "ui"]
+packages = ["core", "ui", "desktop"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"app.py" = "app.py"
 
 [tool.ruff]
 target-version = "py310"
 line-length = 100
-src = ["core", "ui", "scripts", "tests", "app.py"]
+src = ["core", "ui", "desktop", "demo", "scripts", "tests", "app.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
@@ -58,6 +65,8 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "app.py" = ["B008", "SIM117"]
+"demo/app.py" = ["E402", "I001"]
+"demo/limits.py" = ["B008", "I001"]
 "core/cli.py" = ["B008"]
 "core/exports.py" = ["SIM115"]
 "core/__init__.py" = ["F401"]
@@ -98,3 +107,11 @@ check_untyped_defs = false
 module = "scripts.*"
 disallow_untyped_defs = false
 check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "desktop.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "demo.*"
+disallow_untyped_defs = false

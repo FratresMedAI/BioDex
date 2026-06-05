@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BioDex environment setup — Linux / RunPod
+# BioDex environment setup — Linux / macOS / WSL
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,7 +27,7 @@ source .venv/bin/activate
 
 pip install --upgrade pip wheel "setuptools>=65,<81"
 
-# CUDA torch first on GPU hosts (RunPod)
+# CUDA torch first on GPU hosts (optional)
 if command -v nvidia-smi >/dev/null 2>&1; then
   echo "==> NVIDIA GPU detected — installing CUDA PyTorch"
   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124

@@ -564,11 +564,15 @@ def launch_app() -> None:
     print(f"BioDex Field Review v{BIODEX_VERSION} at http://{host}:{port}")
     print("Load a folder or click Load LILA cache, then Process Folder.")
     app = build_app()
+    if settings.enable_queue:
+        app.queue(default_concurrency_limit=2)
     app.launch(
         server_name=host,
         server_port=port,
         theme=APP_THEME,
         css=CUSTOM_CSS,
+        auth=settings.gradio_auth,
+        show_error=True,
     )
 
 

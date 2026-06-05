@@ -10,7 +10,7 @@
 #   4. pip install "speciesnet>=5.0,<6.0"
 #   5. pip install -e ".[dev]"
 #   6. pip install protobuf==3.20.1 --force-reinstall
-#   7. bash scripts/setup_gpu.sh   # RunPod H100 / NVIDIA
+#   7. bash scripts/setup_gpu.sh   # optional: NVIDIA GPU on your machine
 
 protobuf==3.20.1
 setuptools>=65.0,<81.0

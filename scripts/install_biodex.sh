@@ -18,7 +18,7 @@ pip install "protobuf==3.20.1"
 echo "Step 2/5: MegaDetector (must be >=10.0, not PyPI 5.x)"
 pip install "megadetector>=10.0,<11.0"
 
-echo "Step 3/5: UI + numerics (CPU torch; run setup_gpu.sh for H100/CUDA)"
+echo "Step 3/5: UI + numerics (CPU torch; optional: bash scripts/setup_gpu.sh for NVIDIA CUDA)"
 pip install "torch>=2.0" "Pillow>=9.5" "numpy>=1.26.4,<2.0" "pandas>=2.1" "tqdm>=4.64" "setuptools>=65.0,<81.0"
 
 echo "Step 4/5: SpeciesNet (may warn on protobuf; runtime OK with pin above)"

@@ -1,0 +1,13 @@
+# Hugging Face Spaces — limited BioDex demo (protobuf-safe install order).
+protobuf==3.20.1
+setuptools>=65.0,<81.0
+megadetector>=10.0,<11.0
+torch>=2.0
+Pillow>=9.5
+numpy>=1.26.4,<2.0
+pandas>=2.1
+tqdm>=4.64
+gradio>=5.0,<7.0
+speciesnet>=5.0,<6.0
+biodex[ui,models] @ git+https://github.com/FratresMedAI/BioDex.git
+protobuf==3.20.1

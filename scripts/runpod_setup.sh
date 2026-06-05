@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Full RunPod setup: install, GPU torch, static checks, live smoke test.
+# OPTIONAL legacy helper for remote GPU dev environments — not required for local use.
+# Full local install: bash scripts/install_biodex.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

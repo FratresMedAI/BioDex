@@ -1,25 +1,29 @@
 # Example images
 
-Two tiers of demo data:
+**Not the product demo.** Local users and the public HF demo use folder batch workflows. The files here are **smoke-test / spot-check thumbs only** (6 images).
+
+Two tiers of local data:
 
 | Location | Purpose | Size |
 |----------|---------|------|
-| `examples/` | UI **Try Demo** + single-image smoke test | 6 MegaDetector thumbs |
+| `examples/` | UI spot-check + single-image smoke test | 6 MegaDetector thumbs |
 | `~/.cache/biodex/channel-islands-demo/` | **Realistic batch** (LILA Channel Islands) | ~72 camera-trap frames |
 
-## Realistic batch data (recommended for CLI)
+## Realistic batch data (recommended for CLI and UI)
 
-Not stored in git. Download once:
+Not stored in git. Download once on any local machine:
 
 ```bash
 python -m scripts.demo_batch --prepare-only
 biodex batch ~/.cache/biodex/channel-islands-demo \
-  -o /tmp/biodex-out --classify-species --recursive
+  -o ./results --classify-species --recursive
 ```
 
-Verified on H100 (threshold 0.25): **72 images**, **237 animals**, **47 frames with 2+ animals**, per-frame counts up to **12** (e.g. `loc-h500ee05127823__001__157.jpg -> 12`).
+Example output (threshold 0.25): **~72 images**, **~237 animals**, **~47 frames with 2+ animals**, per-frame counts up to **16** in dense timelapse frames.
 
 A few LILA metadata URLs 404; the downloader skips them and still delivers a full set.
+
+Use this cache for **Load LILA cache** in the field-review UI, or point `biodex batch` at your own folder of JPG/PNG images.
 
 ## UI thumbs (`examples/`)
 
@@ -27,7 +31,7 @@ A few LILA metadata URLs 404; the downloader skips them and still delivers a ful
 python scripts/fetch_examples.py
 ```
 
-Downloads **6** MegaDetector demo JPGs for the Gradio **Try Demo** button and `scripts/smoke_test.py`. These are **not** representative of batch volume — use the LILA cache above for that.
+Downloads **6** MegaDetector demo JPGs for the collapsed **Single-image spot check** panel and `scripts/smoke_test.py`. These are **not** representative of batch volume — use the LILA cache above for that.
 
 | File | Description |
 |------|-------------|

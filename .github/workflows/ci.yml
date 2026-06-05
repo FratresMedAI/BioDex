@@ -48,7 +48,7 @@ jobs:
           pip install -r requirements-ci.txt
 
       - name: Ruff
-        run: ruff check core app.py
+        run: ruff check core app.py ui desktop demo
 
       - name: Mypy (core)
         run: mypy core
