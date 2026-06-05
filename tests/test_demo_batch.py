@@ -33,22 +33,24 @@ def _result(filename: str, animals: int, blank: bool = False) -> AnalysisResult:
 
 
 def _volume_batch() -> BatchResult:
+    results = [
+        _result("a.jpg", 3),
+        _result("b.jpg", 2),
+        _result("c.jpg", 1),
+        _result("d.jpg", 0, blank=True),
+    ]
+    results.extend(_result(f"extra{i}.jpg", 1) for i in range(6))
     return BatchResult(
-        results=[
-            _result("a.jpg", 3),
-            _result("b.jpg", 2),
-            _result("c.jpg", 1),
-            _result("d.jpg", 0, blank=True),
-        ],
+        results=results,
         failed=[],
-        total_images=4,
-        processed_count=4,
+        total_images=len(results),
+        processed_count=len(results),
         blank_count=1,
-        total_detections=6,
-        animal_count=6,
+        total_detections=12,
+        animal_count=11,
         person_count=0,
         vehicle_count=0,
-        species_counts={"Island Fox": 4, "Bird": 2},
+        species_counts={"Island Fox": 7, "Bird": 4},
         threshold=0.25,
         species_enabled=True,
     )
@@ -99,7 +101,7 @@ def test_format_volume_summary_includes_blank_rate_and_multi_animal() -> None:
     )
     assert "=== BioDex Volume Batch Demo ===" in text
     assert "Images with 2+ animals detected: 2" in text
-    assert "Blanks: 1 (25.0%)" in text
+    assert "Blanks: 1 (10.0%)" in text
     assert "Top species:" in text
 
 
