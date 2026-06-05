@@ -65,7 +65,7 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "app.py" = ["B008", "SIM117"]
-"demo/app.py" = ["E402", "I001"]
+"demo/app.py" = ["B008", "E402", "I001"]
 "demo/limits.py" = ["B008", "I001"]
 "core/cli.py" = ["B008"]
 "core/exports.py" = ["SIM115"]
