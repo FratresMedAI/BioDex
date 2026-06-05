@@ -28,6 +28,7 @@ from core.exports import (
     export_json,
     save_annotated_image,
 )
+from core.quick_demo import QUICK_DEMO_COUNT, QUICK_DEMO_MAX_ANIMALS, ensure_quick_demo_paths
 from core.types import BIODEX_VERSION, AnalysisResult
 from core.visualization import draw_detections
 from PIL import Image
@@ -35,23 +36,22 @@ from ui.components import (
     FIELD_DETECTION_COLUMNS,
     FIELD_TABLE_COLUMNS,
     RESULTS_COLUMNS,
+    SPECIES_STATUS_INITIAL,
+    _top_species_for_result,
+    batch_species_status_html,
     build_field_batch_dataframe,
     build_minimal_detections_dataframe,
     build_results_dataframe,
-    _top_species_for_result,
-    batch_species_status_html,
     footer_html,
     format_field_batch_summary,
     format_stats_html,
     header_html,
     load_sample_image,
-    SPECIES_STATUS_INITIAL,
     probe_speciesnet,
 )
 from ui.styles import APP_THEME, CUSTOM_CSS
 
 BATCH_ANNOTATED_ZIP_LIMIT = 100
-QUICK_DEMO_IMAGE_LIMIT = 18
 LILA_CACHE_DIR = Path.home() / ".cache" / "biodex" / "channel-islands-demo"
 FAVICON_PATH = Path(__file__).resolve().parent / "ui" / "favicon.png"
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
@@ -276,14 +276,6 @@ def _empty_batch_response(message: str) -> tuple[Any, ...]:
     )
 
 
-def _sample_paths(paths: list[Path], limit: int) -> list[Path]:
-    """Spread-sample paths for a fast demo run with variety across the folder."""
-    if len(paths) <= limit:
-        return paths
-    step = max(1, len(paths) // limit)
-    return paths[::step][:limit]
-
-
 def analyze_batch(
     files: list[str] | None,
     cache_paths: list[str] | None,
@@ -291,19 +283,17 @@ def analyze_batch(
     classify_species: bool,
     progress: Any = gr.Progress(),  # noqa: B008
     *,
-    max_images: int | None = None,
+    demo_paths: list[Path] | None = None,
     demo_mode: bool = False,
 ) -> Iterator[tuple[Any, ...]]:
     """Process an uploaded folder and prepare field-review outputs."""
-    paths = _resolve_batch_paths(files, cache_paths)
+    paths = demo_paths if demo_paths is not None else _resolve_batch_paths(files, cache_paths)
     if not paths:
         return _empty_batch_response(
             "Load LILA cache or upload a folder (Folder upload & settings), then Process Folder."
         )
 
     try:
-        if max_images is not None:
-            paths = _sample_paths(paths, max_images)
         total_paths = len(paths)
         progress(0.0, desc="Loading MegaDetector…")
         warmup_models(species=classify_species)
@@ -353,7 +343,10 @@ def analyze_batch(
             f"**{sum(1 for r in batch.results if r.animal_count >= 2)}** multi-animal frames"
         )
         if demo_mode:
-            status += " · *quick demo preview*"
+            status += (
+                f" · *quick demo — {total_paths} frames, "
+                f"1–{QUICK_DEMO_MAX_ANIMALS} animals each, species on*"
+            )
         if batch.failed:
             status += f" · **{len(batch.failed)}** failed"
         if batch.species_enabled and batch.species_counts:
@@ -479,7 +472,7 @@ def load_lila_cache() -> tuple[list[str], str]:
     _start_model_warmup(species=True)
     return (
         files,
-        f"**{len(files)}** images loaded — **Quick demo** for screenshots, or **Process Folder** for full run.",
+        f"**{len(files)}** images loaded — **Quick demo** (10 pics, species on) or **Process Folder** (full run).",
     )
 
 
@@ -524,14 +517,33 @@ def run_quick_demo(
     threshold: float,
     progress: Any = gr.Progress(),  # noqa: B008
 ) -> Iterator[tuple[Any, ...]]:
-    """Fast detection-only preview for screenshots (~1 min on CPU)."""
+    """Fast screenshot demo: 10 frames, ≤5 animals each, with SpeciesNet labels."""
+    all_paths = _resolve_batch_paths(files, cache_paths)
+    if not all_paths:
+        yield _empty_batch_response(
+            "Load LILA cache first, then click **Quick demo**."
+        )
+        return
+
+    _start_model_warmup(species=True)
+
+    cache_dir = all_paths[0].parent
+    demo_paths = ensure_quick_demo_paths(cache_dir, threshold=threshold)
+    if len(demo_paths) < QUICK_DEMO_COUNT:
+        raise gr.Error(
+            f"Quick demo needs {QUICK_DEMO_COUNT} frames with "
+            f"{1}–{QUICK_DEMO_MAX_ANIMALS} detected animals (no blanks). "
+            f"Only {len(demo_paths)} matched — load the full LILA cache first: "
+            "python -m scripts.demo_batch --prepare-only"
+        )
+
     yield from analyze_batch(
         files,
         cache_paths,
         threshold,
-        classify_species=False,
+        classify_species=True,
         progress=progress,
-        max_images=QUICK_DEMO_IMAGE_LIMIT,
+        demo_paths=demo_paths,
         demo_mode=True,
     )
 
@@ -573,12 +585,17 @@ def build_app() -> gr.Blocks:
 
             with gr.Row(elem_classes=["field-action-bar"]):
                 load_cache_btn = gr.Button("Load LILA cache", scale=1, size="lg")
-                quick_demo_btn = gr.Button("Quick demo", variant="secondary", scale=1, size="lg")
+                quick_demo_btn = gr.Button(
+                    f"Quick demo ({QUICK_DEMO_COUNT} pics + species)",
+                    variant="secondary",
+                    scale=1,
+                    size="lg",
+                )
                 batch_btn = gr.Button("Process Folder", variant="primary", scale=2, size="lg")
                 clear_btn = gr.Button("Clear", scale=1)
 
             batch_status = gr.Markdown(
-                "Load LILA → **Quick demo** (~1 min, for screenshots) · **Process Folder** (full drop-and-leave)",
+                f"Load LILA → **Quick demo** ({QUICK_DEMO_COUNT} pics, 1–{QUICK_DEMO_MAX_ANIMALS} animals, no blanks, ~3–4 min) · **Process Folder** (full 72)",
                 elem_classes=["field-status-line"],
             )
 
