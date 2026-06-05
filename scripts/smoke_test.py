@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-Full local smoke test — requires MegaDetector (+ optional SpeciesNet) model weights.
+Minimal install health check — one image, confirms models load.
+
+This is NOT the primary workflow. For volume batch processing use:
+    python -m scripts.demo_batch --prepare-only
+    biodex batch ~/.cache/biodex/channel-islands-demo -o /tmp/out --classify-species
 
 Usage:
-    python scripts/smoke_test.py
+    python scripts/smoke_test.py              # single ocelot image
     python scripts/smoke_test.py --species
-    python scripts/smoke_test.py --batch examples/
+    python scripts/smoke_test.py --batch examples/   # legacy toy batch only
 """
 
 from __future__ import annotations
@@ -115,6 +119,10 @@ def main() -> int:
                 print("Run: python scripts/fetch_examples.py")
                 return 1
         print(f"Analyzing {image_path} (species={args.species})...")
+        print(
+            "Note: smoke_test checks one image only. "
+            "For volume batch: biodex batch <folder> -o <out> --classify-species"
+        )
         code = _analyze_one(image_path, args.species)
 
     if code == 0:

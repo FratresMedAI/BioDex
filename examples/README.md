@@ -1,40 +1,47 @@
 # Example images
 
-Sample camera trap images for BioDex demos and manual testing.
+Two tiers of demo data:
 
-## Quick setup
+| Location | Purpose | Size |
+|----------|---------|------|
+| `examples/` | UI **Try Demo** + single-image smoke test | 6 MegaDetector thumbs |
+| `~/.cache/biodex/channel-islands-demo/` | **Realistic batch** (LILA Channel Islands) | ~72 camera-trap frames |
 
-```powershell
+## Realistic batch data (recommended for CLI)
+
+Not stored in git. Download once:
+
+```bash
+python -m scripts.demo_batch --prepare-only
+biodex batch ~/.cache/biodex/channel-islands-demo \
+  -o /tmp/biodex-out --classify-species --recursive
+```
+
+Verified on H100 (threshold 0.25): **72 images**, **237 animals**, **47 frames with 2+ animals**, per-frame counts up to **12** (e.g. `loc-h500ee05127823__001__157.jpg -> 12`).
+
+A few LILA metadata URLs 404; the downloader skips them and still delivers a full set.
+
+## UI thumbs (`examples/`)
+
+```bash
 python scripts/fetch_examples.py
 ```
 
-This downloads **6** MegaDetector demo images (~6 JPGs) into this folder. Images are **not** committed to git — only URLs and manifest metadata live in the repo.
+Downloads **6** MegaDetector demo JPGs for the Gradio **Try Demo** button and `scripts/smoke_test.py`. These are **not** representative of batch volume — use the LILA cache above for that.
 
 | File | Description |
 |------|-------------|
-| `sample.jpg` | Ocelot — single-image **Try Demo** default |
+| `sample.jpg` | Ocelot — single-image default |
 | `channel_islands.jpg` | Channel Islands wildlife |
 | `idaho.jpg` | Idaho camera traps |
 | `nacti.jpg` | NACTI sample |
 | `pheasant.jpg` | Pheasant / bird detection |
-| `timelapse.jpg` | Timelapse recognition (dense detections) |
+| `timelapse.jpg` | Timelapse recognition |
 
-Together these images support the **LinkedIn batch demo** (`scripts/batch_smoke.py`) with aggregate stats across multiple animals.
-
-## Manifest
-
-See [`manifest.json`](manifest.json) for sample metadata used by the **Try Demo** and **Load sample image** buttons.
-
-## Batch demo
-
-```bash
-python scripts/fetch_examples.py
-python scripts/batch_smoke.py --species
-```
+See [`manifest.json`](manifest.json) for UI sample metadata.
 
 ## Guidelines
 
-- Use JPG or PNG format
+- Use JPG or PNG format for your own folders
 - Do not commit large image datasets to the repository
 - Avoid images with identifiable people if sharing publicly
-- Camera trap images from your own field work are ideal for realistic testing

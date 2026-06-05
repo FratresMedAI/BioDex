@@ -74,10 +74,10 @@ pip install -e ".[ui,dev]"
 Process a folder of camera-trap images and write master CSV/JSON, per-image artifacts, annotated ZIP, and a text report:
 
 ```bash
-# Download a realistic multi-animal set (Channel Islands / LILA, ~60 images)
-python -m scripts.demo_batch --species --cache-dir ~/.cache/biodex/channel-islands-demo
+# 1. Download realistic multi-animal data (Channel Islands / LILA, ~72 frames)
+python -m scripts.demo_batch --prepare-only
 
-# Run the product CLI on that folder
+# 2. Run the product CLI
 biodex batch ~/.cache/biodex/channel-islands-demo \
   --output /tmp/biodex-batch-out \
   --classify-species \
@@ -86,6 +86,20 @@ biodex batch ~/.cache/biodex/channel-islands-demo \
 cat /tmp/biodex-batch-out/batch_report.txt
 ls -lh /tmp/biodex-batch-out/
 ```
+
+**Verified output (H100, threshold 0.25):**
+
+```
+Images processed: 72
+Blanks: 15 (20.8%) | Failed: 0
+Animals: 237 | People: 0 | Vehicles: 0
+Images with 2+ animals: 47
+Top species: Rodent (69), Bird (47), Island Fox (12), …
+```
+
+Per-image peaks include **11–12 animals** in dense timelapse-style frames. Artifacts: `batch_report.txt` (1.4K), `batch_summary.csv` (56K), `batch_summary.json` (283K), `batch_annotated.zip` (~170M), `images/` (72 subfolders).
+
+> **Note:** `examples/` holds 6 UI demo thumbs only. Realistic batch data lives in `~/.cache/biodex/channel-islands-demo/` after `--prepare-only`.
 
 **Outputs in `--output`:**
 
@@ -127,9 +141,11 @@ python scripts/fetch_examples.py   # 6 MegaDetector demo thumbs for Try Demo
 ## Quick smoke test
 
 ```bash
-python scripts/smoke_test.py --species          # single-image sanity check
-python -m scripts.demo_batch --species          # volume demo (~60 LILA images)
+python scripts/smoke_test.py --species   # install health check: 1 ocelot image only
+python -m scripts.demo_batch --prepare-only && biodex batch ~/.cache/biodex/channel-islands-demo -o /tmp/out --classify-species
 ```
+
+`smoke_test.py` confirms models load; **`biodex batch`** is the real volume workflow.
 
 ### GPU on RunPod / H100
 
@@ -156,13 +172,23 @@ Legacy wrapper (same as `biodex batch`): `python scripts/batch_analyze.py exampl
 
 ### Troubleshooting
 
-**Sample image missing:** Run `python scripts/fetch_examples.py`
+**Sample image missing:** Run `python scripts/fetch_examples.py` (UI thumbs only).
 
-**SpeciesNet / MegaDetector protobuf warning:** See [Reproducing protobuf conflict](#reproducing-protobuf-conflict) below. Try a fresh virtual environment if pip reports conflicts.
+**No batch data / empty folder:** Run `python -m scripts.demo_batch --prepare-only` first.
 
-**Wrong megadetector package:** Ensure `megadetector>=10.0,<11.0` — version 5.x on PyPI is unrelated and breaks imports.
+**`biodex: command not found`:** Run `pip install -e ".[ui,dev]"` from the repo root.
 
-**Species labels look wrong:** SpeciesNet accuracy varies by region. Treat species output as a suggestion for expert review.
+**Exit code 1:** No images in input folder, or folder path wrong. Check `--recursive` if images are in subfolders.
+
+**Exit code 2:** Some images failed; see `batch_report.txt` failures section — summary artifacts are still written.
+
+**SpeciesNet / MegaDetector protobuf warning:** Use `bash scripts/install_biodex.sh` (pins `protobuf==3.20.1` before megadetector).
+
+**Wrong megadetector package:** Ensure `megadetector>=10.0,<11.0` — PyPI 5.x is unrelated.
+
+**GPU falls back to CPU:** Run `bash scripts/setup_gpu.sh` on RunPod/NVIDIA pods.
+
+**Species labels look wrong:** SpeciesNet accuracy varies by region — treat as triage suggestions for expert review.
 
 ---
 
@@ -173,7 +199,7 @@ Legacy wrapper (same as `biodex batch`): `python scripts/batch_analyze.py exampl
 - Test coverage is unit-focused; edge cases for corrupt images, zero detections, classification failures, and non-RGB inputs are in `tests/` but full model inference is marked `@pytest.mark.slow`.
 - Gradio UI is best for interactive review; for folders of 100+ images use **`biodex batch`** (headless CLI).
 - Configuration is environment-driven (`BIODEX_*` vars); no YAML file yet.
-- `examples/` may be empty until `scripts/fetch_examples.py` is run; smoke test falls back with a clear message.
+- `examples/` holds 6 UI demo thumbs; realistic batch data is in `~/.cache/biodex/channel-islands-demo/` after `demo_batch --prepare-only`.
 - Strict mypy/ruff enforcement applies to `core/` in CI; UI scripts are lint-checked but not fully typed.
 
 ---
