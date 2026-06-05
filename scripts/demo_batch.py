@@ -141,7 +141,12 @@ def _download_one(url: str, destination: Path) -> tuple[str, str]:
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.is_file() and destination.stat().st_size > 0:
         return destination.name, "skipped"
-    urllib.request.urlretrieve(url, destination)
+    try:
+        urllib.request.urlretrieve(url, destination)
+    except Exception:
+        if destination.is_file():
+            destination.unlink(missing_ok=True)
+        return destination.name, "failed"
     return destination.name, "downloaded"
 
 
@@ -158,6 +163,7 @@ def download_demo_images(filenames: list[str], cache_dir: Path, workers: int) ->
     print(f"Downloading {len(tasks)} images to {cache_dir} …")
     downloaded = 0
     skipped = 0
+    failed = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {
             pool.submit(_download_one, url, path): path for url, path in tasks
@@ -166,21 +172,34 @@ def download_demo_images(filenames: list[str], cache_dir: Path, workers: int) ->
             _, status = future.result()
             if status == "downloaded":
                 downloaded += 1
-            else:
+            elif status == "skipped":
                 skipped += 1
+            else:
+                failed += 1
+
+    successful = downloaded + skipped
+    if failed:
+        print(f"WARNING: {failed} image(s) unavailable at LILA (404 or network error).")
 
     manifest = {
         "dataset": DATASET_NAME,
         "source": METADATA_ZIP_URL,
         "image_base": IMAGE_BASE_URL,
-        "files": [path.name for _, path in tasks],
+        "files": [path.name for _, path in tasks if path.is_file()],
         "original_paths": filenames,
+        "download_stats": {
+            "requested": len(tasks),
+            "downloaded": downloaded,
+            "skipped": skipped,
+            "failed": failed,
+            "successful": successful,
+        },
     }
     (cache_dir / MANIFEST_NAME).write_text(
         json.dumps(manifest, indent=2),
         encoding="utf-8",
     )
-    print(f"Download complete: {downloaded} new, {skipped} cached.")
+    print(f"Download complete: {downloaded} new, {skipped} cached, {failed} failed.")
     return cache_dir
 
 
@@ -197,22 +216,34 @@ def ensure_volume_images(
 ) -> Path:
     """Ensure the cached volume demo folder contains the curated image set."""
     manifest_path = cache_dir / MANIFEST_NAME
-    if not refresh and manifest_path.is_file() and batch_smoke.discover_images(cache_dir):
-        print(f"Using cached volume demo images in {cache_dir}")
-        return cache_dir
+    if not refresh and manifest_path.is_file():
+        cached_count = len(batch_smoke.discover_images(cache_dir))
+        if cached_count >= max(10, max_images - 5):
+            print(f"Using cached volume demo images in {cache_dir} ({cached_count} files)")
+            return cache_dir
 
     metadata = fetch_channel_islands_metadata()
     filenames = select_demo_filenames(
         metadata,
-        max_images=max_images,
-        multi_animal_quota=multi_animal_quota,
-        blank_quota=blank_quota,
-        single_animal_quota=single_animal_quota,
+        max_images=max_images + 15,
+        multi_animal_quota=multi_animal_quota + 10,
+        blank_quota=blank_quota + 3,
+        single_animal_quota=single_animal_quota + 2,
         seed=seed,
     )
-    if len(filenames) < 10:
-        raise RuntimeError(f"Too few demo images selected ({len(filenames)})")
-    return download_demo_images(filenames, cache_dir, workers)
+    download_demo_images(filenames, cache_dir, workers)
+
+    cached_count = len(batch_smoke.discover_images(cache_dir))
+    if cached_count < 10:
+        raise RuntimeError(
+            f"Too few demo images downloaded ({cached_count}). Check LILA connectivity."
+        )
+    if cached_count < max_images - 5:
+        print(
+            f"WARNING: requested {max_images} images but only {cached_count} "
+            "are available after download."
+        )
+    return cache_dir
 
 
 def format_volume_summary(
@@ -301,6 +332,8 @@ def run_volume_demo(
         return 1
 
     images = batch_smoke.load_example_images(image_dir)
+    if len(images) > max_images:
+        images = images[:max_images]
     print(
         f"Volume batch: {len(images)} images from {image_dir} "
         f"(species={classify_species}, threshold={threshold})"
