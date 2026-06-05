@@ -25,7 +25,7 @@ def _emit_progress(
 ) -> None:
     """Call batch progress hook; tolerate legacy 3-arg callbacks."""
     try:
-        callback(current, total, message, fraction)  # type: ignore[misc]
+        callback(current, total, message, fraction)  # type: ignore[call-arg]
     except TypeError:
         callback(current, total, message)
 

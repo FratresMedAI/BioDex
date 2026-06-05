@@ -289,9 +289,10 @@ def analyze_batch(
     """Process an uploaded folder and prepare field-review outputs."""
     paths = demo_paths if demo_paths is not None else _resolve_batch_paths(files, cache_paths)
     if not paths:
-        return _empty_batch_response(
+        yield _empty_batch_response(
             "Load LILA cache or upload a folder (Folder upload & settings), then Process Folder."
         )
+        return
 
     try:
         total_paths = len(paths)
