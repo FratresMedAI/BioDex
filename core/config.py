@@ -23,11 +23,11 @@ def _env_bool(key: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _env_auth() -> tuple[tuple[str, str], ...] | None:
+def _env_auth() -> list[tuple[str, str]] | None:
     user = os.getenv("BIODEX_AUTH_USER")
     password = os.getenv("BIODEX_AUTH_PASSWORD")
     if user and password:
-        return ((user, password),)
+        return [(user, password)]
     return None
 
 
@@ -40,7 +40,7 @@ class BioDexSettings:
     host: str
     port: int
     enable_queue: bool
-    gradio_auth: tuple[tuple[str, str], ...] | None
+    gradio_auth: list[tuple[str, str]] | None
 
     @classmethod
     def from_env(cls) -> BioDexSettings:
