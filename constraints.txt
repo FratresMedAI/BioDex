@@ -1,13 +1,16 @@
-# Optional pip constraints for reproducible installs.
-# Usage: pip install -r requirements.txt -c constraints.txt
+# Pip constraints — use WITH scripts/install_biodex.sh (not raw requirements.txt alone).
 #
-# KNOWN CONFLICT: megadetector 10.x (via ultralytics-yolov5) pins protobuf<=3.20.1,
-# while speciesnet/onnx prefer protobuf>=4.25. Pip may report a resolver warning.
-# If SpeciesNet fails at runtime, use a fresh venv and install megadetector first,
-# then speciesnet, and test with: python scripts/smoke_test.py --species
+# megadetector 10.x (ultralytics-yolov5) requires protobuf<=3.20.1.
+# speciesnet/onnx prefer newer protobuf; install megadetector FIRST, then speciesnet.
 #
-# Do NOT install the unrelated PyPI package "megadetector" 5.x — use >=10.0 only.
+# Working sequence (encoded in scripts/install_biodex.sh):
+#   1. pip install protobuf==3.20.1
+#   2. pip install "megadetector>=10.0,<11.0"
+#   3. pip install -r requirements-base.txt
+#   4. pip install "speciesnet>=5.0,<6.0"
+#   5. pip install -e ".[dev]"
+#   6. pip install protobuf==3.20.1 --force-reinstall
+#   7. bash scripts/setup_gpu.sh   # RunPod H100 / NVIDIA
 
-protobuf>=3.20.1,<=3.20.1
-onnx>=1.17.0,<1.22.0
+protobuf==3.20.1
 setuptools>=65.0,<81.0

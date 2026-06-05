@@ -9,7 +9,6 @@ Usage:
 from __future__ import annotations
 
 import json
-import sys
 import urllib.request
 from pathlib import Path
 
@@ -17,10 +16,15 @@ ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = ROOT / "examples"
 MANIFEST_PATH = EXAMPLES_DIR / "manifest.json"
 
+_MEGA_BASE = "https://raw.githubusercontent.com/agentmorris/MegaDetector/main/images"
+
 SAMPLE_URLS = {
-    "sample.jpg": (
-        "https://github.com/agentmorris/MegaDetector/raw/main/images/orinoquia-thumb-web.jpg"
-    ),
+    "sample.jpg": f"{_MEGA_BASE}/orinoquia-thumb-web.jpg",
+    "channel_islands.jpg": f"{_MEGA_BASE}/channel-islands-thumb.jpg",
+    "idaho.jpg": f"{_MEGA_BASE}/idaho-camera-traps.jpg",
+    "nacti.jpg": f"{_MEGA_BASE}/nacti.jpg",
+    "pheasant.jpg": f"{_MEGA_BASE}/pheasant_web.jpg",
+    "timelapse.jpg": f"{_MEGA_BASE}/recognitionInTimelapse.jpg",
 }
 
 

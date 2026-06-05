@@ -14,13 +14,13 @@ from core.types import (
 )
 
 
-def test_species_confidence_tier():
+def test_species_confidence_tier() -> None:
     assert species_confidence_tier(0.85, DEFAULT_SPECIES_MIN_CONFIDENCE) == SPECIES_TIER_HIGH
     assert species_confidence_tier(0.55, DEFAULT_SPECIES_MIN_CONFIDENCE) == SPECIES_TIER_BORDERLINE
     assert species_confidence_tier(0.30, DEFAULT_SPECIES_MIN_CONFIDENCE) == SPECIES_TIER_UNCERTAIN
 
 
-def test_parse_species_result_skips_blank_top():
+def test_parse_species_result_skips_blank_top() -> None:
     result = {
         "classifications": {
             "classes": ["blank", "mammalia;leopardus_pardalis"],
@@ -34,7 +34,7 @@ def test_parse_species_result_skips_blank_top():
     assert prediction.confidence_tier == SPECIES_TIER_BORDERLINE
 
 
-def test_parse_species_result_all_blank_returns_none():
+def test_parse_species_result_all_blank_returns_none() -> None:
     result = {
         "classifications": {
             "classes": ["blank"],
@@ -44,7 +44,7 @@ def test_parse_species_result_all_blank_returns_none():
     assert parse_species_result(result) is None
 
 
-def test_apply_species_confidence_tier_marks_low_as_uncertain():
+def test_apply_species_confidence_tier_marks_low_as_uncertain() -> None:
     prediction = SpeciesPrediction(
         label="Deer",
         confidence=0.25,
@@ -56,7 +56,7 @@ def test_apply_species_confidence_tier_marks_low_as_uncertain():
     assert filtered.confidence_tier == SPECIES_TIER_UNCERTAIN
 
 
-def test_format_species_alternatives_only_for_borderline():
+def test_format_species_alternatives_only_for_borderline() -> None:
     high = SpeciesPrediction(
         label="Ocelot",
         confidence=0.95,
@@ -75,7 +75,7 @@ def test_format_species_alternatives_only_for_borderline():
     assert "Elk" in text
 
 
-def test_format_species_display_uncertain():
+def test_format_species_display_uncertain() -> None:
     uncertain = SpeciesPrediction(
         label=UNCERTAIN_LABEL,
         confidence=0.22,

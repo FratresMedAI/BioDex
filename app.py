@@ -8,17 +8,17 @@ and batch folder analysis. All inference runs locally.
 from __future__ import annotations
 
 import traceback
+from pathlib import Path
+from typing import Any, cast
 
 import gradio as gr
-from PIL import Image
-
 from core.batch import run_batch
 from core.config import get_settings
 from core.detector import analyze_single_image
 from core.exports import (
     batch_to_csv,
+    build_batch_annotated_zip,
     detections_to_csv,
-    export_batch_annotated_zip,
     export_batch_json,
     export_bundle,
     export_json,
@@ -26,6 +26,7 @@ from core.exports import (
 )
 from core.types import BIODEX_VERSION
 from core.visualization import draw_detections
+from PIL import Image
 from ui.components import (
     BATCH_COLUMNS,
     RESULTS_COLUMNS,
@@ -70,17 +71,17 @@ SPECIES_TOGGLE_INFO = (
 )
 
 
-def _disabled_download():
+def _disabled_download() -> Any:
     return gr.update(value=None, interactive=False)
 
 
-def _enabled_download(path: str | None):
+def _enabled_download(path: str | None) -> Any:
     if path:
         return gr.update(value=path, interactive=True)
     return gr.update(value=None, interactive=False)
 
 
-def load_sample_only():
+def load_sample_only() -> tuple[Image.Image, str, str]:
     """Load the bundled sample image into the upload control."""
     try:
         image, note = load_sample_image()
@@ -89,7 +90,7 @@ def load_sample_only():
         raise gr.Error(str(exc)) from exc
 
 
-def run_demo_mode(progress=gr.Progress()):
+def run_demo_mode(progress: Any = gr.Progress()) -> tuple[Any, ...]:  # noqa: B008
     """Demo Mode: load sample, run detection + species, return full results."""
     try:
         image, note = load_sample_image()
@@ -108,7 +109,7 @@ def run_demo_mode(progress=gr.Progress()):
     return (gr.update(value=True),) + results
 
 
-def try_demo(progress=gr.Progress()):
+def try_demo(progress: Any = gr.Progress()) -> tuple[Any, ...]:  # noqa: B008
     """Backward-compatible alias used by tests or scripts."""
     return run_demo_mode(progress=progress)[1:]
 
@@ -145,8 +146,8 @@ def analyze_image(
     threshold: float,
     classify_species: bool,
     sample_note: str = "",
-    progress=gr.Progress(),
-):
+    progress: Any = gr.Progress(),  # noqa: B008
+) -> tuple[Any, ...]:
     """Main single-image analysis handler."""
     if image is None:
         raise gr.Error("Please upload a camera trap image (JPG or PNG) or use Demo Mode.")
@@ -223,19 +224,17 @@ def analyze_batch(
     files: list[str] | None,
     threshold: float,
     classify_species: bool,
-    progress=gr.Progress(),
-):
+    progress: Any = gr.Progress(),  # noqa: B008
+) -> tuple[Any, ...]:
     """Analyze multiple uploaded images."""
     if not files:
         raise gr.Error("Please upload one or more camera trap images.")
 
     try:
-        from pathlib import Path
-
         images: list[tuple[str, Image.Image]] = []
         for file_path in files:
-            path = Path(file_path)
-            images.append((path.name, Image.open(path).convert("RGB")))
+            upload_path = Path(file_path)
+            images.append((upload_path.name, Image.open(upload_path).convert("RGB")))
 
         def on_batch_progress(current: int, total: int, message: str) -> None:
             progress(current / total, desc=message)
@@ -252,26 +251,11 @@ def analyze_batch(
         csv_path = batch_to_csv(batch)
         json_path = export_batch_json(batch)
 
-        annotated_paths: list[tuple[str, str]] = []
-        for result in batch.results:
-            if result.error:
-                continue
-            source = next(img for name, img in images if name == result.filename)
-            annotated = draw_detections(source, result.detections)
-            path = save_annotated_image(
-                annotated,
-                filename_prefix=f"biodex_{Path(result.filename).stem}_",
-            )
-            annotated_paths.append((result.filename, path))
-
-        zip_path = None
-        if annotated_paths:
-            zip_path = export_batch_annotated_zip(
-                annotated_paths,
-                max_images=BATCH_ANNOTATED_ZIP_LIMIT,
-            )
-            for _, path in annotated_paths:
-                Path(path).unlink(missing_ok=True)
+        zip_path = build_batch_annotated_zip(
+            batch,
+            images,
+            max_images=BATCH_ANNOTATED_ZIP_LIMIT,
+        )
 
         progress(1.0, desc="Batch analysis complete")
 
@@ -587,7 +571,7 @@ def build_app() -> gr.Blocks:
 
             gr.HTML(footer_html())
 
-    return demo
+    return cast(gr.Blocks, demo)
 
 
 if __name__ == "__main__":

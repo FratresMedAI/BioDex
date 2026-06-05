@@ -2,10 +2,9 @@
 
 from unittest.mock import patch
 
-from PIL import Image
-
 from core.batch import run_batch
 from core.types import AnalysisResult, DetectionRecord
+from PIL import Image
 
 
 def _fake_result(filename: str, total: int) -> AnalysisResult:
@@ -36,7 +35,7 @@ def _fake_result(filename: str, total: int) -> AnalysisResult:
     )
 
 
-def test_run_batch_aggregates_results():
+def test_run_batch_aggregates_results() -> None:
     images = [
         ("a.jpg", Image.new("RGB", (10, 10))),
         ("b.jpg", Image.new("RGB", (10, 10))),
@@ -56,7 +55,7 @@ def test_run_batch_aggregates_results():
     assert len(batch.failed) == 0
 
 
-def test_run_batch_continues_on_failure():
+def test_run_batch_continues_on_failure() -> None:
     images = [("bad.jpg", Image.new("RGB", (10, 10)))]
 
     with patch("core.batch.analyze_single_image", side_effect=RuntimeError("boom")):

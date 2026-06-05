@@ -6,8 +6,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from PIL import Image, ImageOps
-
 from core.detector import (
     _build_detection_records,
     _prepare_camera_trap_image,
@@ -15,6 +13,7 @@ from core.detector import (
     analyze_single_image,
 )
 from core.types import ANIMAL_CATEGORY_ID, AnalysisResult
+from PIL import Image, ImageOps
 
 
 class _FakeDetector:

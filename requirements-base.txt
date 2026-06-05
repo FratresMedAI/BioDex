@@ -1,0 +1,13 @@
+# Base runtime deps (no megadetector/speciesnet — install via scripts/install_biodex.sh)
+gradio>=5.0,<7.0
+Pillow>=9.5
+numpy>=1.26.4,<2.0
+pandas>=2.1
+setuptools>=65.0,<81.0
+tqdm>=4.64
+torch>=2.0
+
+# After protobuf==3.20.1 and megadetector>=10.0,<11.0:
+# pip install "speciesnet>=5.0,<6.0"
+
+# GPU: bash scripts/setup_gpu.sh  (cu124 torch for H100-class drivers)

@@ -1,17 +1,16 @@
 """Unit tests for visualization."""
 
+from core.types import SPECIES_TIER_HIGH, DetectionRecord, SpeciesPrediction
+from core.visualization import _adaptive_font_size, draw_detections
 from PIL import Image
 
-from core.types import DetectionRecord, SpeciesPrediction, SPECIES_TIER_HIGH
-from core.visualization import _adaptive_font_size, draw_detections
 
-
-def test_adaptive_font_size():
+def test_adaptive_font_size() -> None:
     assert _adaptive_font_size(800, 600) == 12
     assert _adaptive_font_size(3200, 2400) == 22
 
 
-def test_draw_detections_returns_image():
+def test_draw_detections_returns_image() -> None:
     image = Image.new("RGB", (200, 200), color=(30, 30, 30))
     detections = [
         DetectionRecord(
@@ -41,7 +40,7 @@ def test_draw_detections_returns_image():
     assert annotated.getpixel((15, 185)) != image.getpixel((15, 185))
 
 
-def test_draw_detections_without_legend():
+def test_draw_detections_without_legend() -> None:
     image = Image.new("RGB", (200, 200), color=(30, 30, 30))
     detections = [
         DetectionRecord(
@@ -57,7 +56,7 @@ def test_draw_detections_without_legend():
     assert with_legend.getpixel((15, 185)) != without_legend.getpixel((15, 185))
 
 
-def test_draw_detections_tiny_box():
+def test_draw_detections_tiny_box() -> None:
     image = Image.new("RGB", (400, 400), color=(40, 40, 40))
     detections = [
         DetectionRecord(
@@ -72,7 +71,7 @@ def test_draw_detections_tiny_box():
     assert annotated.size == image.size
 
 
-def test_draw_detections_empty():
+def test_draw_detections_empty() -> None:
     image = Image.new("RGB", (100, 100), color=(0, 0, 0))
     annotated = draw_detections(image, [])
     assert annotated.size == image.size

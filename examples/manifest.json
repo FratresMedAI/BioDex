@@ -6,6 +6,41 @@
       "title": "Ocelot (South America)",
       "description": "Demonstrates animal detection and high-confidence species ID.",
       "species_demo": true
+    },
+    {
+      "id": "channel_islands",
+      "file": "channel_islands.jpg",
+      "title": "Channel Islands",
+      "description": "Multi-animal camera trap scene for batch triage demos.",
+      "species_demo": true
+    },
+    {
+      "id": "idaho",
+      "file": "idaho.jpg",
+      "title": "Idaho Camera Traps",
+      "description": "North American wildlife detections for batch aggregation.",
+      "species_demo": true
+    },
+    {
+      "id": "nacti",
+      "file": "nacti.jpg",
+      "title": "NACTI Sample",
+      "description": "Additional animals from the MegaDetector demo set.",
+      "species_demo": true
+    },
+    {
+      "id": "pheasant",
+      "file": "pheasant.jpg",
+      "title": "Pheasant",
+      "description": "Bird detection example for species classification.",
+      "species_demo": true
+    },
+    {
+      "id": "timelapse",
+      "file": "timelapse.jpg",
+      "title": "Timelapse Recognition",
+      "description": "Higher detection density candidate for batch stats.",
+      "species_demo": true
     }
   ],
   "default_sample_id": "ocelot"

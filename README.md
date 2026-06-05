@@ -57,18 +57,52 @@ python app.py
 
 > **First run:** MegaDetector downloads model weights (~280 MB) once. SpeciesNet downloads additional weights (~214 MB) when first enabled. Internet is required for first-time downloads; all later analysis works offline.
 
-### Optional: GPU acceleration
+### Optional: GPU acceleration (RunPod / NVIDIA H100)
 
-```powershell
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+Default `pip install torch` may install a CUDA build incompatible with your driver (inference falls back to CPU). On RunPod H100-class pods:
+
+```bash
+bash scripts/install_biodex.sh    # ordered install (protobuf + megadetector first)
+source .venv/bin/activate
+bash scripts/setup_gpu.sh         # cu124 torch — use the H100
+python scripts/test_mega_load.py  # should print GPU available: True, device cuda:0
+python scripts/smoke_test.py --species
 ```
 
-CPU-only mode works fine for occasional single-image analysis.
+One-shot on a fresh pod: `bash scripts/runpod_setup.sh`
+
+### Batch demo (LinkedIn)
+
+Multi-image aggregate stats + master CSV/JSON/annotated ZIP — screenshot-ready output:
+
+```bash
+git clone https://github.com/FratresMedAI/BioDex.git && cd BioDex
+bash scripts/runpod_setup.sh          # or install_biodex.sh + setup_gpu.sh
+source .venv/bin/activate
+python scripts/fetch_examples.py      # 6 MegaDetector demo JPGs
+python scripts/batch_smoke.py --species
+```
+
+Expected after first GPU run: **6+ animals across 6 images** at threshold 0.25, with paths under `/tmp/biodex-batch-demo/` (`batch_summary.csv`, `batch_summary.json`, `batch_annotated.zip`).
+
+For the Gradio UI: expose port **7860**, open **Batch Folder**, upload `examples/*.jpg`.
+
+Full screenshot checklist: [docs/demo.md](docs/demo.md)
+
+### Fresh environment (venv or conda)
+
+**Recommended (avoids protobuf ResolutionImpossible):**
+
+```bash
+git clone https://github.com/FratresMedAI/BioDex.git && cd BioDex
+bash scripts/install_biodex.sh
+source .venv/bin/activate
+python scripts/fetch_examples.py
+```
+
+Do **not** rely on plain `pip install -r requirements.txt` alone — see `constraints.txt` and `scripts/install_biodex.sh`.
 
 ### Development and testing
-
-```powershell
-pip install -r requirements-ci.txt
 pytest tests/ -v -m "not slow"
 python -m mypy core
 python -m ruff check core tests app.py

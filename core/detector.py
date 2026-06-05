@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 from PIL import Image, ImageOps
 
 from core.classifier import enrich_with_species
@@ -88,7 +89,7 @@ def _prepare_camera_trap_image(image: Image.Image) -> Image.Image:
     return image
 
 
-def _pil_to_numpy(image: Image.Image) -> np.ndarray:
+def _pil_to_numpy(image: Image.Image) -> npt.NDArray[Any]:
     """Convert PIL RGB image to numpy array expected by MegaDetector."""
     return np.array(image)
 

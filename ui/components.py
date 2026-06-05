@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 import urllib.request
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
-from PIL import Image
-
 from core.types import (
     BIODEX_VERSION,
     AnalysisResult,
@@ -16,15 +15,21 @@ from core.types import (
     format_species_alternatives,
     format_species_display,
 )
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = ROOT / "examples"
 MANIFEST_PATH = EXAMPLES_DIR / "manifest.json"
 
+_MEGA_BASE = "https://raw.githubusercontent.com/agentmorris/MegaDetector/main/images"
+
 SAMPLE_URLS = {
-    "sample.jpg": (
-        "https://github.com/agentmorris/MegaDetector/raw/main/images/orinoquia-thumb-web.jpg"
-    ),
+    "sample.jpg": f"{_MEGA_BASE}/orinoquia-thumb-web.jpg",
+    "channel_islands.jpg": f"{_MEGA_BASE}/channel-islands-thumb.jpg",
+    "idaho.jpg": f"{_MEGA_BASE}/idaho-camera-traps.jpg",
+    "nacti.jpg": f"{_MEGA_BASE}/nacti.jpg",
+    "pheasant.jpg": f"{_MEGA_BASE}/pheasant_web.jpg",
+    "timelapse.jpg": f"{_MEGA_BASE}/recognitionInTimelapse.jpg",
 }
 
 RESULTS_COLUMNS = [
@@ -50,22 +55,22 @@ BATCH_COLUMNS = [
 ]
 
 
-def load_manifest() -> dict:
+def load_manifest() -> dict[str, Any]:
     """Load examples/manifest.json if present."""
     if not MANIFEST_PATH.exists():
         return {"samples": [], "default_sample_id": None}
-    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(MANIFEST_PATH.read_text(encoding="utf-8")))
 
 
-def get_default_sample() -> dict | None:
+def get_default_sample() -> dict[str, Any] | None:
     """Return the default sample entry from the manifest."""
     manifest = load_manifest()
     default_id = manifest.get("default_sample_id")
     for sample in manifest.get("samples", []):
         if sample.get("id") == default_id:
-            return sample
+            return cast(dict[str, Any], sample)
     samples = manifest.get("samples", [])
-    return samples[0] if samples else None
+    return cast(dict[str, Any], samples[0]) if samples else None
 
 
 def ensure_sample_image() -> Path:
@@ -84,11 +89,11 @@ def ensure_sample_image() -> Path:
             "No demo sample configured. Run: python scripts/fetch_examples.py"
         )
 
-    path = EXAMPLES_DIR / sample["file"]
+    path = EXAMPLES_DIR / str(sample["file"])
     if path.exists():
         return path
 
-    url = SAMPLE_URLS.get(sample["file"])
+    url = SAMPLE_URLS.get(str(sample["file"]))
     if not url:
         raise FileNotFoundError(
             f"Demo sample missing at {path} and no download URL is configured. "

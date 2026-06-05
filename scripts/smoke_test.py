@@ -18,12 +18,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.detector import analyze_single_image
+from core.exports import (
+    detections_to_csv,
+    export_bundle,
+    export_json,
+)
+from core.visualization import draw_detections
 from PIL import Image
 
-from core.batch import run_batch
-from core.detector import analyze_single_image
-from core.exports import batch_to_csv, detections_to_csv, export_batch_json, export_bundle, export_json
-from core.visualization import draw_detections
+from scripts import batch_smoke
 
 
 def _analyze_one(image_path: Path, species: bool) -> int:
@@ -54,31 +58,13 @@ def _analyze_one(image_path: Path, species: bool) -> int:
 
 
 def _analyze_batch(folder: Path, species: bool) -> int:
-    images = sorted(
-        [
-            *folder.glob("*.jpg"),
-            *folder.glob("*.jpeg"),
-            *folder.glob("*.png"),
-        ]
+    return batch_smoke.run_batch_demo(
+        examples_dir=folder,
+        output_dir=batch_smoke.DEFAULT_OUTPUT_DIR,
+        threshold=0.25,
+        classify_species=species,
+        min_animals=1,
     )
-    if not images:
-        print(f"ERROR: no images found in {folder}")
-        return 1
-
-    pairs = [(path.name, Image.open(path)) for path in images]
-    batch = run_batch(pairs, threshold=0.25, classify_species=species)
-    print(f"Processed {batch.total_images} images")
-    print(f"Blanks: {batch.blank_count}, Detections: {batch.total_detections}")
-    if batch.species_counts:
-        print(f"Species counts: {batch.species_counts}")
-    if batch.failed:
-        print(f"Failed: {batch.failed}")
-
-    csv_path = batch_to_csv(batch)
-    json_path = export_batch_json(batch)
-    print(f"Batch CSV:  {csv_path}")
-    print(f"Batch JSON: {json_path}")
-    return 0
 
 
 def main() -> int:

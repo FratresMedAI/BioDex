@@ -1,21 +1,19 @@
 # BioDex runtime dependencies — Python 3.10–3.12
-# Install: pip install -r requirements.txt
-# Optional constraints: pip install -r requirements.txt -c constraints.txt
 #
-# IMPORTANT: megadetector must be >=10.0 (camera-trap MegaDetector).
-# The unrelated PyPI package megadetector 5.x will break imports.
+# DO NOT run plain `pip install -r requirements.txt` on a fresh venv — it will fail
+# with ResolutionImpossible (megadetector/yolov5 protobuf<=3.20.1 vs onnx/speciesnet).
+#
+# Recommended install (local or RunPod):
+#   bash scripts/install_biodex.sh
+#
+# GPU (H100 / RunPod after install):
+#   source .venv/bin/activate && bash scripts/setup_gpu.sh
+#
+# Manual order (same as install_biodex.sh):
+#   pip install "protobuf==3.20.1"
+#   pip install "megadetector>=10.0,<11.0"
+#   pip install -r requirements-base.txt
+#   pip install "speciesnet>=5.0,<6.0"
+#   pip install -e ".[dev]"
 
-gradio>=5.0,<7.0
-megadetector>=10.0,<11.0
-speciesnet>=5.0,<6.0
-torch>=2.0
-Pillow>=9.5
-numpy>=1.26.4,<2.0
-pandas>=2.1
-onnx>=1.17.0,<1.22.0
-setuptools>=65.0,<81.0
-tqdm>=4.64
-
-# CLI (optional): pip install typer>=0.12  OR  pip install -e ".[cli]"
-
-# GPU (RunPod / NVIDIA): pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+-r requirements-base.txt

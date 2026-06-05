@@ -48,11 +48,36 @@ Open **http://127.0.0.1:7860**
 
 ## Batch demo (3 minutes)
 
+### CLI — LinkedIn screenshot demo
+
+```bash
+python scripts/fetch_examples.py
+python scripts/batch_smoke.py --species
+ls -lh /tmp/biodex-batch-demo/
+```
+
+Capture the terminal block between `=== BioDex Batch Demo Summary ===` and `=== END ===`. Expected: **6 images**, **6+ animals** total, species counts, per-image animal counts, and paths to:
+
+- `batch_summary.csv` — master detections table
+- `batch_summary.json` — structured batch payload
+- `batch_annotated.zip` — annotated PNGs per image
+
+On RunPod: `bash scripts/runpod_setup.sh` runs fetch + batch smoke on GPU after install.
+
+### UI — Batch Folder tab
+
 1. Switch to **Batch Folder**.
-2. Upload 3–5 camera trap images from a local folder.
+2. Upload the `examples/*.jpg` set (or 3–5 local camera trap images).
 3. Use the same threshold and species settings from the top panel.
 4. Click **Analyze Batch**.
-5. Show the per-image summary table and **Master CSV** export.
+5. Show the per-image summary table, stat cards, and **Master CSV** / ZIP exports.
+
+### Screenshot checklist (LinkedIn / social)
+
+- [ ] Terminal summary with aggregate animal count and species breakdown
+- [ ] `batch_summary.csv` open in a spreadsheet (filename + species columns)
+- [ ] One annotated image from `batch_annotated.zip`
+- [ ] Optional: Gradio batch stats panel side-by-side with terminal output
 
 ---
 

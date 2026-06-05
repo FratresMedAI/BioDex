@@ -74,7 +74,7 @@ def _padded_bbox(bbox: list[float], padding_ratio: float = SPECIES_CROP_PADDING)
     return [xmin, ymin, box_w, box_h]
 
 
-def _build_top3(classes: list, scores: list) -> list[tuple[str, float]]:
+def _build_top3(classes: list[Any], scores: list[Any]) -> list[tuple[str, float]]:
     top3: list[tuple[str, float]] = []
     for raw_label, score in zip(classes[:3], scores[:3], strict=False):
         top3.append((format_taxon_label(str(raw_label)), float(score)))
@@ -121,7 +121,7 @@ def apply_species_confidence_tier(
 
 
 def parse_species_result(
-    result: dict,
+    result: dict[str, Any],
     species_min_confidence: float = DEFAULT_SPECIES_MIN_CONFIDENCE,
 ) -> SpeciesPrediction | None:
     """Extract and normalize top species predictions from a SpeciesNet result dict."""

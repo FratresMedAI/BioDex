@@ -299,6 +299,42 @@ def export_bundle(result: AnalysisResult, annotated_image: Image.Image) -> str:
     return tmp.name
 
 
+def build_batch_annotated_zip(
+    batch: BatchResult,
+    images: list[tuple[str, Image.Image]],
+    max_images: int = 50,
+) -> str | None:
+    """
+    Draw annotations for successful batch results and bundle them into a ZIP.
+
+    Temporary annotated PNGs are removed after the archive is written.
+    """
+    from core.visualization import draw_detections
+
+    image_by_name = {name: img for name, img in images}
+    annotated_paths: list[tuple[str, str]] = []
+    for result in batch.results:
+        if result.error:
+            continue
+        source = image_by_name.get(result.filename)
+        if source is None:
+            continue
+        annotated = draw_detections(source, result.detections)
+        annotated_file = save_annotated_image(
+            annotated,
+            filename_prefix=f"biodex_{Path(result.filename).stem}_",
+        )
+        annotated_paths.append((result.filename, annotated_file))
+
+    if not annotated_paths:
+        return None
+
+    zip_path = export_batch_annotated_zip(annotated_paths, max_images=max_images)
+    for _, annotated_file in annotated_paths:
+        Path(annotated_file).unlink(missing_ok=True)
+    return zip_path
+
+
 def export_batch_annotated_zip(
     annotated_paths: list[tuple[str, str]],
     max_images: int = 50,
@@ -324,6 +360,7 @@ def export_batch_annotated_zip(
 __all__ = [
     "CSV_COLUMNS",
     "batch_to_csv",
+    "build_batch_annotated_zip",
     "detections_to_csv",
     "export_batch_annotated_zip",
     "export_batch_json",

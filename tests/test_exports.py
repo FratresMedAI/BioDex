@@ -4,8 +4,6 @@ import json
 import zipfile
 from pathlib import Path
 
-from PIL import Image
-
 from core.exports import (
     detections_to_csv,
     export_batch_json,
@@ -19,6 +17,7 @@ from core.types import (
     DetectionRecord,
     SpeciesPrediction,
 )
+from PIL import Image
 
 
 def _sample_result() -> AnalysisResult:
@@ -56,7 +55,7 @@ def _sample_result() -> AnalysisResult:
     )
 
 
-def test_detections_to_csv():
+def test_detections_to_csv() -> None:
     result = _sample_result()
     path = detections_to_csv(result)
     try:
@@ -69,7 +68,7 @@ def test_detections_to_csv():
         Path(path).unlink(missing_ok=True)
 
 
-def test_detections_to_csv_blank_row():
+def test_detections_to_csv_blank_row() -> None:
     result = AnalysisResult(
         detections=[],
         total=0,
@@ -94,7 +93,7 @@ def test_detections_to_csv_blank_row():
         Path(path).unlink(missing_ok=True)
 
 
-def test_export_json():
+def test_export_json() -> None:
     result = _sample_result()
     path = export_json(result)
     try:
@@ -111,7 +110,7 @@ def test_export_json():
         Path(path).unlink(missing_ok=True)
 
 
-def test_export_bundle():
+def test_export_bundle() -> None:
     result = _sample_result()
     image = Image.new("RGB", (64, 64), color=(10, 20, 30))
     path = export_bundle(result, image)
@@ -125,7 +124,7 @@ def test_export_bundle():
         Path(path).unlink(missing_ok=True)
 
 
-def test_export_batch_json():
+def test_export_batch_json() -> None:
     result = _sample_result()
     batch = BatchResult(
         results=[result],
