@@ -139,7 +139,11 @@ def run_batch_demo(
     Returns:
         0 on success, non-zero if validation fails.
     """
-    if ensure_examples() != 0:
+    if examples_dir == EXAMPLES_DIR:
+        if not discover_images(examples_dir) and ensure_examples() != 0:
+            return 1
+    elif not discover_images(examples_dir):
+        print(f"ERROR: no images found in {examples_dir}")
         return 1
 
     images = load_example_images(examples_dir)

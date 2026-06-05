@@ -71,21 +71,23 @@ python scripts/smoke_test.py --species
 
 One-shot on a fresh pod: `bash scripts/runpod_setup.sh`
 
-### Batch demo (LinkedIn)
+### Batch demo (LinkedIn) — volume path
 
-Multi-image aggregate stats + master CSV/JSON/annotated ZIP — screenshot-ready output:
+Primary demo after install: real **Channel Islands (LILA)** camera-trap subset with multi-animal frames, blanks, and aggregate exports:
 
 ```bash
 git clone https://github.com/FratresMedAI/BioDex.git && cd BioDex
-bash scripts/runpod_setup.sh          # or install_biodex.sh + setup_gpu.sh
+bash scripts/install_biodex.sh && bash scripts/setup_gpu.sh
 source .venv/bin/activate
-python scripts/fetch_examples.py      # 6 MegaDetector demo JPGs
-python scripts/batch_smoke.py --species
+python -m scripts.demo_batch --species
+ls -lh ~/.cache/biodex/channel-islands-demo/ /tmp/biodex-volume-demo/
 ```
 
-Expected after first GPU run (H100, threshold 0.25): **7 animals across 6 images** — e.g. Ocelot, Island Fox, Puma, Plains Zebra, Silver Pheasant, Bird×2 — with paths under `/tmp/biodex-batch-demo/` (`batch_summary.csv`, `batch_summary.json`, `batch_annotated.zip`).
+Capture the terminal block between `=== BioDex Volume Batch Demo ===` and `=== END ===` (~60 images, 25+ animals, multi-animal frames, blank rate, master CSV/JSON/ZIP).
 
-For the Gradio UI: expose port **7860**, open **Batch Folder**, upload `examples/*.jpg`.
+Quick toy batch on bundled MegaDetector thumbs (6 images): `python scripts/batch_smoke.py --species`
+
+For the Gradio UI: expose port **7860**, open **Batch Folder**, upload a folder of camera-trap JPGs.
 
 Full screenshot checklist: [docs/demo.md](docs/demo.md)
 

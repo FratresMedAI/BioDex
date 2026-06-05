@@ -10,8 +10,8 @@ bash scripts/setup_gpu.sh
 source .venv/bin/activate
 python scripts/fetch_examples.py
 
-echo "=== BATCH DEMO (GPU) ==="
-python scripts/batch_smoke.py --species
+echo "=== VOLUME BATCH DEMO (GPU) ==="
+python -m scripts.demo_batch --species
 
 echo "=== RUFF ==="
 ruff check . --output-format=concise

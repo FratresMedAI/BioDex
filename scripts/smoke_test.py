@@ -117,19 +117,6 @@ def main() -> int:
         print(f"Analyzing {image_path} (species={args.species})...")
         code = _analyze_one(image_path, args.species)
 
-        if code == 0 and not args.batch:
-            examples_dir = ROOT / "examples"
-            example_images = sorted(
-                [
-                    *examples_dir.glob("*.jpg"),
-                    *examples_dir.glob("*.jpeg"),
-                    *examples_dir.glob("*.png"),
-                ]
-            )
-            if len(example_images) > 1:
-                print(f"Optional batch smoke on {examples_dir} …")
-                code = _analyze_batch(examples_dir, args.species) or code
-
     if code == 0:
         print("Smoke test PASSED")
     return code

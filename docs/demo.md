@@ -48,21 +48,23 @@ Open **http://127.0.0.1:7860**
 
 ## Batch demo (3 minutes)
 
-### CLI — LinkedIn screenshot demo
+### CLI — LinkedIn volume demo (primary)
 
 ```bash
-python scripts/fetch_examples.py
-python scripts/batch_smoke.py --species
-ls -lh /tmp/biodex-batch-demo/
+python -m scripts.demo_batch --species
+ls -lh ~/.cache/biodex/channel-islands-demo/ /tmp/biodex-volume-demo/
 ```
 
-Capture the terminal block between `=== BioDex Batch Demo Summary ===` and `=== END ===`. Verified on H100: **6 images**, **7 animals** total, species counts (Ocelot, Island Fox, Puma, Plains Zebra, Silver Pheasant, Bird×2), per-image animal counts, and paths to:
+Downloads ~60 **Channel Islands (LILA)** camera-trap frames (multi-animal + blanks), runs GPU batch inference, and prints aggregate stats. Capture the block between `=== BioDex Volume Batch Demo ===` and `=== END ===`. Look for:
 
-- `batch_summary.csv` — master detections table
-- `batch_summary.json` — structured batch payload
-- `batch_annotated.zip` — annotated PNGs per image
+- **60 images** processed with visible **blank rate**
+- **25+ animals** total and **5+ images with 2+ animals**
+- Species counts and top species
+- `batch_summary.csv`, `batch_summary.json`, `batch_annotated.zip` under `/tmp/biodex-volume-demo/`
 
-On RunPod: `bash scripts/runpod_setup.sh` runs fetch + batch smoke on GPU after install.
+Toy 6-image MegaDetector thumb batch: `python scripts/batch_smoke.py --species`
+
+On RunPod: `bash scripts/runpod_setup.sh` runs the volume batch demo on GPU after install.
 
 ### UI — Batch Folder tab
 
