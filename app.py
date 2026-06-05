@@ -574,7 +574,8 @@ def build_app() -> gr.Blocks:
     return cast(gr.Blocks, demo)
 
 
-if __name__ == "__main__":
+def launch_app() -> None:
+    """Build and launch the Gradio UI (console entry: ``biodex-ui``)."""
     settings = get_settings()
     host = settings.host
     port = settings.port
@@ -587,3 +588,7 @@ if __name__ == "__main__":
         theme=APP_THEME,
         css=CUSTOM_CSS,
     )
+
+
+if __name__ == "__main__":
+    launch_app()

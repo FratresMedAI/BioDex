@@ -22,6 +22,7 @@ import zipfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -45,6 +46,10 @@ DEFAULT_CACHE_DIR = Path.home() / ".cache" / "biodex" / "channel-islands-demo"
 DEFAULT_OUTPUT_DIR = batch_smoke.DEFAULT_OUTPUT_DIR.parent / "biodex-volume-demo"
 MANIFEST_NAME = "volume_manifest.json"
 EMPTY_CATEGORY_NAMES = frozenset({"empty", "blank"})
+
+
+def _coco_list(metadata: dict[str, object], key: str) -> list[dict[str, Any]]:
+    return cast(list[dict[str, Any]], metadata[key])
 
 
 def fetch_channel_islands_metadata() -> dict[str, object]:
@@ -77,7 +82,7 @@ def select_demo_filenames(
     """
     categories = {
         category["id"]: str(category["name"])
-        for category in metadata["categories"]  # type: ignore[index]
+        for category in _coco_list(metadata, "categories")
     }
     empty_ids = {
         category_id
@@ -86,14 +91,14 @@ def select_demo_filenames(
     }
 
     animal_counts: Counter[object] = Counter()
-    for annotation in metadata["annotations"]:  # type: ignore[index]
+    for annotation in _coco_list(metadata, "annotations"):
         category_id = annotation["category_id"]
         if category_id not in empty_ids:
             animal_counts[annotation["image_id"]] += 1
 
     id_to_file = {
         image["id"]: str(image["file_name"])
-        for image in metadata["images"]  # type: ignore[index]
+        for image in _coco_list(metadata, "images")
     }
 
     multi_ids = [image_id for image_id, count in animal_counts.items() if count >= 2]
@@ -473,7 +478,26 @@ def main() -> int:
         action="store_true",
         help="Re-download metadata and images even if cached",
     )
+    parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Download LILA demo images only (no inference)",
+    )
     args = parser.parse_args()
+
+    if args.prepare_only:
+        ensure_volume_images(
+            Path(args.cache_dir),
+            max_images=args.max_images,
+            multi_animal_quota=args.multi_animal_quota,
+            blank_quota=args.blank_quota,
+            single_animal_quota=args.single_animal_quota,
+            seed=args.seed,
+            workers=args.workers,
+            refresh=args.refresh,
+        )
+        print(f"LILA volume images ready in {args.cache_dir}")
+        return 0
 
     return run_volume_demo(
         cache_dir=Path(args.cache_dir),

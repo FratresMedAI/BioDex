@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "biodex"
-version = "0.4.0"
+dynamic = ["version"]
 description = "Local, privacy-first AI for wildlife camera trap analysis"
 readme = "README.md"
 license = { text = "MIT" }
@@ -12,15 +12,18 @@ requires-python = ">=3.10,<3.13"
 authors = [{ name = "FratresMedAI" }]
 keywords = ["camera-trap", "wildlife", "megadetector", "speciesnet", "conservation"]
 dependencies = [
-    "gradio>=5.0,<7.0",
     "Pillow>=9.5",
     "numpy>=1.26.4,<2.0",
     "pandas>=2.1",
     "setuptools>=65.0,<81.0",
     "tqdm>=4.64",
+    "typer>=0.12",
 ]
 
 [project.optional-dependencies]
+ui = [
+    "gradio>=5.0,<7.0",
+]
 models = [
     "megadetector>=10.0,<11.0",
     "speciesnet>=5.0,<6.0",
@@ -32,13 +35,14 @@ dev = [
     "mypy>=1.10",
     "types-Pillow",
 ]
-cli = [
-    "typer>=0.12",
-    "tqdm>=4.64",
-]
 
 [project.scripts]
 biodex = "core.cli:main"
+biodex-ui = "core.ui_entry:main"
+
+[tool.hatch.version]
+path = "core/types.py"
+pattern = "BIODEX_VERSION = \"(?P<version>[^\"]+)\""
 
 [tool.hatch.build.targets.wheel]
 packages = ["core", "ui"]
@@ -77,6 +81,7 @@ module = [
     "yolov5.*",
     "pandas.*",
     "tqdm.*",
+    "typer.*",
 ]
 ignore_missing_imports = true
 
@@ -86,5 +91,10 @@ disable_error_code = ["arg-type"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "scripts.*"
 disallow_untyped_defs = false
 check_untyped_defs = false

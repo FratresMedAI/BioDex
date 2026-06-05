@@ -10,8 +10,14 @@ bash scripts/setup_gpu.sh
 source .venv/bin/activate
 python scripts/fetch_examples.py
 
-echo "=== VOLUME BATCH DEMO (GPU) ==="
-python -m scripts.demo_batch --species
+echo "=== PREPARE LILA VOLUME DATA ==="
+python -m scripts.demo_batch --prepare-only
+
+echo "=== PRODUCT CLI BATCH (GPU) ==="
+biodex batch "$HOME/.cache/biodex/channel-islands-demo" \
+  --output /tmp/biodex-cli-batch-out \
+  --classify-species \
+  --recursive
 
 echo "=== RUFF ==="
 ruff check . --output-format=concise

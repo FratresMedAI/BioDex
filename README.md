@@ -45,98 +45,114 @@ BioDex is built for **defensive, protective use of AI**: biodiversity monitoring
 
 ---
 
-## Quick start
+## Install
 
-**Requirements:** Python 3.10–3.12, ~3 GB disk space (including model weights after first run).
-
-```powershell
-pip install -r requirements.txt
-python scripts/fetch_examples.py   # optional but recommended for demo
-python app.py
-```
-
-> **First run:** MegaDetector downloads model weights (~280 MB) once. SpeciesNet downloads additional weights (~214 MB) when first enabled. Internet is required for first-time downloads; all later analysis works offline.
-
-### Optional: GPU acceleration (RunPod / NVIDIA H100)
-
-Default `pip install torch` may install a CUDA build incompatible with your driver (inference falls back to CPU). On RunPod H100-class pods:
-
-```bash
-bash scripts/install_biodex.sh    # ordered install (protobuf + megadetector first)
-source .venv/bin/activate
-bash scripts/setup_gpu.sh         # cu124 torch — use the H100
-python scripts/test_mega_load.py  # should print GPU available: True, device cuda:0
-python scripts/smoke_test.py --species
-```
-
-One-shot on a fresh pod: `bash scripts/runpod_setup.sh`
-
-### Batch demo (LinkedIn) — volume path
-
-Primary demo after install: real **Channel Islands (LILA)** camera-trap subset with multi-animal frames, blanks, and aggregate exports:
+**Requirements:** Python 3.10–3.12, ~3 GB disk for model weights after first run.
 
 ```bash
 git clone https://github.com/FratresMedAI/BioDex.git && cd BioDex
-bash scripts/install_biodex.sh && bash scripts/setup_gpu.sh
+bash scripts/install_biodex.sh          # protobuf-safe megadetector + speciesnet + editable install
 source .venv/bin/activate
-python -m scripts.demo_batch --species
-ls -lh ~/.cache/biodex/channel-islands-demo/ /tmp/biodex-volume-demo/
+bash scripts/setup_gpu.sh               # optional: CUDA torch on RunPod / NVIDIA GPUs
 ```
 
-Capture the terminal block between `=== BioDex Volume Batch Demo ===` and `=== END ===` (~60 images, 25+ animals, multi-animal frames, blank rate, master CSV/JSON/ZIP).
-
-Quick toy batch on bundled MegaDetector thumbs (6 images): `python scripts/batch_smoke.py --species`
-
-For the Gradio UI: expose port **7860**, open **Batch Folder**, upload a folder of camera-trap JPGs.
-
-Full screenshot checklist: [docs/demo.md](docs/demo.md)
-
-### Fresh environment (venv or conda)
-
-**Recommended (avoids protobuf ResolutionImpossible):**
+Manual install:
 
 ```bash
-git clone https://github.com/FratresMedAI/BioDex.git && cd BioDex
-bash scripts/install_biodex.sh
-source .venv/bin/activate
-python scripts/fetch_examples.py
+python -m venv .venv && source .venv/bin/activate
+pip install "protobuf==3.20.1"
+pip install "megadetector>=10.0,<11.0" "speciesnet>=5.0,<6.0" "torch>=2.0"
+pip install -e ".[ui,dev]"
 ```
 
-Do **not** rely on plain `pip install -r requirements.txt` alone — see `constraints.txt` and `scripts/install_biodex.sh`.
+> **First run:** MegaDetector (~280 MB) and SpeciesNet (~214 MB) download once when first used. Analysis is offline afterward.
 
-### Development and testing
+---
+
+## Headless batch CLI (primary workflow)
+
+Process a folder of camera-trap images and write master CSV/JSON, per-image artifacts, annotated ZIP, and a text report:
+
+```bash
+# Download a realistic multi-animal set (Channel Islands / LILA, ~60 images)
+python -m scripts.demo_batch --species --cache-dir ~/.cache/biodex/channel-islands-demo
+
+# Run the product CLI on that folder
+biodex batch ~/.cache/biodex/channel-islands-demo \
+  --output /tmp/biodex-batch-out \
+  --classify-species \
+  --recursive
+
+cat /tmp/biodex-batch-out/batch_report.txt
+ls -lh /tmp/biodex-batch-out/
+```
+
+**Outputs in `--output`:**
+
+| File | Description |
+|------|-------------|
+| `batch_report.txt` | Aggregate summary (images, animals, blanks, species, failures) |
+| `batch_summary.csv` | Master detections table |
+| `batch_summary.json` | Structured batch payload |
+| `batch_annotated.zip` | Annotated PNGs (up to 100 by default) |
+| `images/` | Per-image annotated PNG, CSV, and JSON |
+
+**Exit codes:** `0` success · `1` fatal (no images) · `2` partial failures (summary still written)
+
+**Options:** `--threshold 0.25` · `--no-recursive` · `--verbose` · `--zip-limit 100`
+
+Your own field data:
+
+```bash
+biodex batch /path/to/camera_trap_folder -o ./results --classify-species --recursive
+```
+
+---
+
+## Interactive UI (optional)
+
+```bash
+biodex-ui
+# or: python app.py
+```
+
+Open **http://127.0.0.1:7860** — Demo Mode tab for single-image demo; **Batch Folder** tab for interactive uploads.
+
+```bash
+python scripts/fetch_examples.py   # 6 MegaDetector demo thumbs for Try Demo
+```
+
+---
+
+## Quick smoke test
+
+```bash
+python scripts/smoke_test.py --species          # single-image sanity check
+python -m scripts.demo_batch --species          # volume demo (~60 LILA images)
+```
+
+### GPU on RunPod / H100
+
+```bash
+bash scripts/setup_gpu.sh
+python scripts/test_mega_load.py   # expect cuda:0
+biodex batch ~/.cache/biodex/channel-islands-demo -o /tmp/out --classify-species
+```
+
+One-shot setup: `bash scripts/runpod_setup.sh`
+
+---
+
+## Development
+
+```bash
 pytest tests/ -v -m "not slow"
-python -m mypy core
-python -m ruff check core tests app.py
-python scripts/smoke_test.py
-python scripts/smoke_test.py --species
-python scripts/batch_analyze.py examples/ -o /tmp/biodex-out --recursive
+ruff check .
+mypy . --strict
+pip install -e ".[ui,dev]"
 ```
 
-Install editable with CLI extras: `pip install -e ".[dev,cli]"`
-
-Manual lint (no pre-commit hook yet): `ruff check .` and `mypy core`
-
-### Fresh environment (venv or conda)
-
-**venv (recommended):**
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\activate   # Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
-# Optional protobuf pin for megadetector-first installs:
-pip install -r requirements.txt -c constraints.txt
-python scripts/fetch_examples.py
-```
-
-**conda:**
-
-```bash
-conda create -n biodex python=3.11 -y
-conda activate biodex
-pip install -r requirements.txt
-```
+Legacy wrapper (same as `biodex batch`): `python scripts/batch_analyze.py examples/ -o /tmp/out -r --classify-species`
 
 ### Troubleshooting
 
@@ -155,7 +171,7 @@ pip install -r requirements.txt
 - No historical `pyproject.toml`-only install path before v0.4 packaging pass; use `requirements.txt` or `pip install -e .` after pulling latest.
 - Loose dependency resolution can still surface **protobuf conflicts** between MegaDetector (via ultralytics-yolov5, `protobuf<=3.20.1`) and SpeciesNet/onnx (prefer newer protobuf).
 - Test coverage is unit-focused; edge cases for corrupt images, zero detections, classification failures, and non-RGB inputs are in `tests/` but full model inference is marked `@pytest.mark.slow`.
-- Gradio UI progress and error display improved in v0.4 but browser batch uploads remain limited for very large folders — prefer `scripts/batch_analyze.py` or `biodex analyze` CLI.
+- Gradio UI is best for interactive review; for folders of 100+ images use **`biodex batch`** (headless CLI).
 - Configuration is environment-driven (`BIODEX_*` vars); no YAML file yet.
 - `examples/` may be empty until `scripts/fetch_examples.py` is run; smoke test falls back with a clear message.
 - Strict mypy/ruff enforcement applies to `core/` in CI; UI scripts are lint-checked but not fully typed.
