@@ -56,7 +56,7 @@ python scripts/batch_smoke.py --species
 ls -lh /tmp/biodex-batch-demo/
 ```
 
-Capture the terminal block between `=== BioDex Batch Demo Summary ===` and `=== END ===`. Expected: **6 images**, **6+ animals** total, species counts, per-image animal counts, and paths to:
+Capture the terminal block between `=== BioDex Batch Demo Summary ===` and `=== END ===`. Verified on H100: **6 images**, **7 animals** total, species counts (Ocelot, Island Fox, Puma, Plains Zebra, Silver Pheasant, Bird×2), per-image animal counts, and paths to:
 
 - `batch_summary.csv` — master detections table
 - `batch_summary.json` — structured batch payload

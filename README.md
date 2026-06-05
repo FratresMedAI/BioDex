@@ -83,7 +83,7 @@ python scripts/fetch_examples.py      # 6 MegaDetector demo JPGs
 python scripts/batch_smoke.py --species
 ```
 
-Expected after first GPU run: **6+ animals across 6 images** at threshold 0.25, with paths under `/tmp/biodex-batch-demo/` (`batch_summary.csv`, `batch_summary.json`, `batch_annotated.zip`).
+Expected after first GPU run (H100, threshold 0.25): **7 animals across 6 images** — e.g. Ocelot, Island Fox, Puma, Plains Zebra, Silver Pheasant, Bird×2 — with paths under `/tmp/biodex-batch-demo/` (`batch_summary.csv`, `batch_summary.json`, `batch_annotated.zip`).
 
 For the Gradio UI: expose port **7860**, open **Batch Folder**, upload `examples/*.jpg`.
 
