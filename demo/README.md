@@ -14,5 +14,3 @@ license: mit
 # LIMITED DEMO — not the full app
 
 **Max 30 images · No ZIP · Not private · [Run locally on GitHub](https://github.com/FratresMedAI/BioDex)**
-
-Upload a folder → **Process Folder**. First run downloads models (~500 MB).
