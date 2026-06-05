@@ -76,7 +76,7 @@ def select_demo_filenames(
     counts at inference time may differ slightly.
     """
     categories = {
-        int(category["id"]): str(category["name"])
+        category["id"]: str(category["name"])
         for category in metadata["categories"]  # type: ignore[index]
     }
     empty_ids = {
@@ -85,14 +85,14 @@ def select_demo_filenames(
         if name in EMPTY_CATEGORY_NAMES
     }
 
-    animal_counts: Counter[int] = Counter()
+    animal_counts: Counter[object] = Counter()
     for annotation in metadata["annotations"]:  # type: ignore[index]
-        category_id = int(annotation["category_id"])
+        category_id = annotation["category_id"]
         if category_id not in empty_ids:
-            animal_counts[int(annotation["image_id"])] += 1
+            animal_counts[annotation["image_id"]] += 1
 
     id_to_file = {
-        int(image["id"]): str(image["file_name"])
+        image["id"]: str(image["file_name"])
         for image in metadata["images"]  # type: ignore[index]
     }
 
