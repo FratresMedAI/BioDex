@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from core.exports import (
     export_ecosentinel,
     export_inaturalist,
@@ -48,7 +50,7 @@ def _sample_batch() -> BatchResult:
     )
 
 
-def test_export_wildlife_insights(tmp_path) -> None:
+def test_export_wildlife_insights() -> None:
     path = export_wildlife_insights(_sample_batch())
     assert path.endswith(".csv")
 
@@ -65,7 +67,7 @@ def test_export_timelapse_md() -> None:
     assert path.endswith(".json")
 
 
-def test_export_sqlite(tmp_path) -> None:
+def test_export_sqlite(tmp_path: Path) -> None:
     db = tmp_path / "test.sqlite"
     path = export_sqlite(_sample_batch(), db)
     assert path.endswith(".sqlite")

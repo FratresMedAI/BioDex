@@ -19,6 +19,8 @@ All notable changes to BioDex are documented here.
 
 - Full quality gates pass: pytest (`not slow`), ruff, mypy (`core`, `app.py`, `ui`), and `build_app()` smoke check
 - Default behavior remains backwards-compatible (`MDV5A` detector + optional SpeciesNet classification)
+- CI/release hardening: package build job, pre-commit checks in CI, and Docker health checks
+- Added release documentation artifacts: `CITATION.cff`, `CONTRIBUTING.md`, `SECURITY.md`
 
 ## [0.5.0] — 2025-06-08
 

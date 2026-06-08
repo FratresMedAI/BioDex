@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+title: BioDex
+message: "If you use BioDex in research, please cite this software."
+type: software
+authors:
+  - family-names: FratresMedAI
+    given-names: Team
+repository-code: "https://github.com/FratresMedAI/BioDex"
+license: MIT
+version: "1.0.0"
+date-released: 2026-06-08
+abstract: >
+  BioDex is a local-first wildlife camera-trap analysis tool using MegaDetector
+  and optional SpeciesNet classification, with export formats for conservation workflows.

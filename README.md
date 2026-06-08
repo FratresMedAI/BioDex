@@ -5,6 +5,8 @@
 [![Python 3.10–3.12](https://img.shields.io/badge/python-3.10--3.12-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)](CHANGELOG.md)
+[![CI](https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml/badge.svg)](https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml)
+[![Release](https://github.com/FratresMedAI/BioDex/actions/workflows/release.yml/badge.svg)](https://github.com/FratresMedAI/BioDex/actions/workflows/release.yml)
 
 Built for conservation research, field review, and defensive wildlife monitoring (Fratres / EcoSentinel integration hooks).
 
@@ -70,6 +72,19 @@ biodex video /path/to/clip.mp4 -o ./video-results --fps 1 --max-frames 120
 
 Environment variables: `BIODEX_DETECTOR_MODEL`, `BIODEX_TORCH_COMPILE`, `BIODEX_GEOFENCE_REGION`, `BIODEX_AUDIT_LOG=1`
 
+## Docker quick start
+
+```bash
+docker build -t biodex:cpu -f Dockerfile .
+docker run --rm -p 7860:7860 biodex:cpu
+```
+
+GPU:
+
+```bash
+docker build -t biodex:gpu -f Dockerfile.gpu .
+```
+
 ---
 
 ## Developers
@@ -82,7 +97,7 @@ mypy core app.py ui
 pre-commit install   # optional
 ```
 
-See [CHANGELOG.md](CHANGELOG.md) and [docs/roadmap.md](docs/roadmap.md).
+See [CHANGELOG.md](CHANGELOG.md), [docs/roadmap.md](docs/roadmap.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md).
 
 ---
 

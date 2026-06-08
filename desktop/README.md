@@ -1,6 +1,6 @@
-# Desktop launcher (work in progress)
+# Desktop launcher
 
-The `desktop/` package and `biodex-desktop` entry point are **scaffolding only** — not the current distribution path.
+The `desktop/` package and `biodex-desktop` entry point provide a desktop-launch smoke path via PyInstaller.
 
 **Use BioDex locally today:**
 
@@ -9,4 +9,4 @@ bash scripts/install_biodex.sh   # Windows: .\scripts\install_biodex.ps1
 biodex-ui
 ```
 
-Frozen double-click builds (`BioDex.exe`) are planned future work. See [docs/desktop.md](../docs/desktop.md).
+Cross-platform distribution polishing continues in post-1.0 releases. See [docs/desktop.md](../docs/desktop.md).

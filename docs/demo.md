@@ -28,3 +28,11 @@ biodex video clip.mp4 -o ./video-out --fps 1
 ## Screenshots
 
 Add captures to `docs/screenshots/` for README and LinkedIn posts.
+
+Suggested captures for launch:
+
+- `dashboard-overview.png`
+- `batch-review-table.png`
+- `video-keyframes.png`
+- `analytics-heatmap.png`
+- `settings-panel.png`
