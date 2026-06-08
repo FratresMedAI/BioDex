@@ -1,3 +1,14 @@
+# Examples
+
+## Integration examples
+
+- [`ecosentinel_integration.py`](ecosentinel_integration.py) — run a BioDex batch and emit the
+  EcoSentinel sensor-fusion JSON payload, then simulate downstream ingestion. Run it with:
+
+```bash
+python examples/ecosentinel_integration.py path/to/images --classify-species --out payload.json
+```
+
 # Example images
 
 **Not the product demo.** Local users should use folder batch workflows. The files here are **smoke-test / spot-check thumbs only** (6 images).

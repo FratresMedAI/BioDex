@@ -19,13 +19,13 @@ An honest look at where BioDex is headed.
 
 ---
 
-## v1.1 — Video and motion
+## v1.1 — Video, edge inference and tracking
 
-**Goal:** Full camera-trap video workflow.
+**Goal:** Full camera-trap video workflow + a real edge path. Detailed plan: [`v1.1-plan.md`](v1.1-plan.md).
 
 - [ ] Multi-clip batch video processing
-- [ ] IOU-based detection aggregation across frames
-- [ ] ONNX/TensorRT production edge paths
+- [ ] IOU-based detection aggregation / cross-frame tracking (count individuals, not detections)
+- [ ] ONNX production edge path (promote `core/models/edge.py` stub); TensorRT deferred to v1.2
 - [ ] Verified PyInstaller desktop distribution
 
 ---
