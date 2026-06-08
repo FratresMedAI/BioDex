@@ -161,6 +161,7 @@ class SpeciesNetAdapter:
 
         if self._classifier is None:
             self.load()
+        assert self._classifier is not None
         xmin, ymin, width, height = _padded_bbox(detection.bbox)
         bboxes = [BBox(xmin=xmin, ymin=ymin, width=width, height=height)]
         return self._classifier.preprocess(image, bboxes=bboxes)
