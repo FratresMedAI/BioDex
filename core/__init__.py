@@ -1,5 +1,6 @@
 """BioDex core modules for detection, classification, visualization, and export."""
 
+import core.models  # noqa: F401 — register default detector/classifier adapters
 from core.batch import run_batch
 from core.classifier import DEFAULT_SPECIES_MIN_CONFIDENCE, enrich_with_species, get_classifier
 from core.detector import (

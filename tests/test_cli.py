@@ -48,7 +48,7 @@ def _batch() -> BatchResult:
 @patch("core.cli.build_batch_annotated_zip", return_value=None)
 @patch("core.cli.export_batch_json", return_value="/tmp/t.json")
 @patch("core.cli.batch_to_csv", return_value="/tmp/t.csv")
-@patch("core.cli.run_batch")
+@patch("core.cli.run_batch_from_paths")
 def test_run_batch_cli_writes_summary_and_report(
     mock_run_batch: MagicMock,
     mock_csv: MagicMock,
@@ -89,7 +89,7 @@ def test_run_batch_cli_writes_summary_and_report(
     mock_run_batch.assert_called_once()
 
 
-@patch("core.cli.run_batch")
+@patch("core.cli.run_batch_from_paths")
 def test_run_batch_cli_returns_partial_failure_code(
     mock_run_batch: MagicMock,
     tmp_path: Path,

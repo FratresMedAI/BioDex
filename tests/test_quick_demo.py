@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 from core.quick_demo import (
     MANIFEST_VERSION,
-    QUICK_DEMO_COUNT,
     ensure_quick_demo_paths,
     scan_quick_demo_paths,
 )

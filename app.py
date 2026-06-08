@@ -1,770 +1,225 @@
 """
-BioDex — Local AI for Wildlife Camera Traps (v0.4)
+BioDex — Local AI for Wildlife Camera Traps (v0.5)
 
-Gradio web UI for MegaDetector v5a detection, optional SpeciesNet classification,
-and batch folder analysis. All inference runs locally.
+Gradio web UI with tabbed Dashboard, Batch, Video, Analytics, and Settings.
+All inference runs locally.
 """
 
 from __future__ import annotations
 
 import logging
 import threading
-import traceback
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, cast
 
 import gradio as gr
-import pandas as pd
-from core.batch import run_batch
 from core.config import get_settings
-from core.detector import analyze_single_image, warmup_models
-from core.exports import (
-    batch_to_csv,
-    build_batch_annotated_zip,
-    detections_to_csv,
-    export_batch_json,
-    export_bundle,
-    export_json,
-    save_annotated_image,
+from core.detector import warmup_models
+from core.types import BIODEX_VERSION
+from ui.components import footer_html, header_html
+from ui.handlers import (
+    analyze_batch,
+    analyze_spot_check,
+    analyze_video_ui,
+    apply_settings,
+    clear_batch_review,
+    compute_analytics,
+    load_lila_cache,
+    refresh_species_status,
+    request_cancel,
+    run_quick_demo,
+    select_batch_frame,
 )
-from core.quick_demo import QUICK_DEMO_COUNT, QUICK_DEMO_MAX_ANIMALS, ensure_quick_demo_paths
-from core.types import BIODEX_VERSION, AnalysisResult
-from core.visualization import draw_detections
-from PIL import Image
-from ui.components import (
-    FIELD_DETECTION_COLUMNS,
-    FIELD_TABLE_COLUMNS,
-    RESULTS_COLUMNS,
-    SPECIES_STATUS_INITIAL,
-    _top_species_for_result,
-    batch_species_status_html,
-    build_field_batch_dataframe,
-    build_minimal_detections_dataframe,
-    build_results_dataframe,
-    footer_html,
-    format_field_batch_summary,
-    format_stats_html,
-    header_html,
-    load_sample_image,
-    probe_speciesnet,
+from ui.settings_store import load_settings
+from ui.styles import APP_THEME, CUSTOM_CSS, dark_mode_css
+from ui.tabs import (
+    build_analytics_tab,
+    build_batch_tab,
+    build_dashboard_tab,
+    build_settings_tab,
+    build_video_tab,
 )
-from ui.styles import APP_THEME, CUSTOM_CSS
 
-BATCH_ANNOTATED_ZIP_LIMIT = 100
 LILA_CACHE_DIR = Path.home() / ".cache" / "biodex" / "channel-islands-demo"
 FAVICON_PATH = Path(__file__).resolve().parent / "ui" / "favicon.png"
-IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp"}
 logger = logging.getLogger(__name__)
-
-EMPTY_FIELD_SUMMARY = (
-    '<div class="field-summary field-summary-empty">'
-    "Ready — Load LILA cache, then Process Folder"
-    "</div>"
-)
-
-HOW_IT_WORKS = """
-### How BioDex works
-
-BioDex runs entirely on your computer. Your images are never uploaded to a cloud API.
-
-**Step 1 — Detection (MegaDetector v5a)**  
-[MegaDetector](https://github.com/agentmorris/MegaDetector) finds animals, people, and vehicles in camera trap images and returns bounding boxes with confidence scores.
-
-**Step 2 — Species classification (optional)**  
-When enabled, BioDex crops each animal detection and runs [SpeciesNet](https://github.com/google/cameratrapai) locally to suggest likely species. Borderline or uncertain predictions show alternatives for expert review.
-
-**Step 3 — Batch mode**  
-Upload multiple images at once to triage a folder. BioDex builds a summary table and exports a master CSV/JSON plus optional annotated image ZIP.
-
-**Blank images:** An image is treated as a **blank** when no animal, person, or vehicle passes your confidence threshold.
-
-**First run:** Model weights download once (MegaDetector ~280 MB; SpeciesNet ~214 MB if enabled), then analysis works offline.
-
-**Species caveat:** SpeciesNet accuracy varies by region. Treat species labels as suggestions for expert review, not ground truth.
-"""
-
-SPECIES_TOGGLE_INFO = (
-    "Identify species locally with SpeciesNet on animal crops. "
-    "Typical runtime: ~5–15s on CPU. Downloads ~214 MB on first use."
-)
-
-
-def _disabled_download() -> Any:
-    return gr.update(value=None, interactive=False)
-
-
-def _enabled_download(path: str | None) -> Any:
-    if path:
-        return gr.update(value=path, interactive=True)
-    return gr.update(value=None, interactive=False)
-
-
-def load_sample_only() -> tuple[Image.Image, str, str]:
-    """Load the bundled sample image into the upload control."""
-    try:
-        image, note = load_sample_image()
-        return image, f'<div class="biodex-sample-note">{note}</div>', "**Status:** Sample loaded."
-    except FileNotFoundError as exc:
-        raise gr.Error(str(exc)) from exc
-
-
-def run_demo_mode(progress: Any = gr.Progress()) -> tuple[Any, ...]:  # noqa: B008
-    """Demo Mode: load sample, run detection + species, return full results."""
-    try:
-        image, note = load_sample_image()
-    except FileNotFoundError as exc:
-        raise gr.Error(str(exc)) from exc
-
-    progress(0, desc="Demo Mode: preparing sample image…")
-    results = analyze_image(
-        image=image,
-        threshold=0.25,
-        classify_species=True,
-        sample_note=note,
-        progress=progress,
-    )
-    # analyze_image returns 10 outputs; prepend enabled species toggle update
-    return (gr.update(value=True),) + results
-
-
-def try_demo(progress: Any = gr.Progress()) -> tuple[Any, ...]:  # noqa: B008
-    """Backward-compatible alias used by tests or scripts."""
-    return run_demo_mode(progress=progress)[1:]
-
-
-def _format_model_error(exc: Exception) -> str:
-    """Turn model-load/inference failures into actionable Gradio messages."""
-    message = str(exc)
-    lower = message.lower()
-    if "megadetector" in lower or "failed to load" in lower:
-        return (
-            f"**MegaDetector error:** {message}\n\n"
-            "First run downloads ~280 MB of weights. Check disk space, internet, "
-            "and that `megadetector>=10.0,<11.0` is installed (not the unrelated 5.x package)."
-        )
-    if "speciesnet" in lower or "species" in lower:
-        return (
-            f"**SpeciesNet error:** {message}\n\n"
-            "Species classification adds ~214 MB on first use. Try disabling species "
-            "classification or use a fresh virtual environment if protobuf conflicts appear."
-        )
-    if "no space left" in lower or "disk full" in lower or isinstance(exc, OSError):
-        return (
-            f"**Storage error:** {message}\n\n"
-            "Free disk space for model weights and temporary export files."
-        )
-    return (
-        f"**Analysis failed:** {message}\n\n"
-        "If this is your first run, model weights may still be downloading."
-    )
-
-
-def analyze_image(
-    image: Image.Image | None,
-    threshold: float,
-    classify_species: bool,
-    sample_note: str = "",
-    progress: Any = gr.Progress(),  # noqa: B008
-) -> tuple[Any, ...]:
-    """Main single-image analysis handler."""
-    if image is None:
-        raise gr.Error("Please upload a camera trap image (JPG or PNG) or use Demo Mode.")
-
-    try:
-        if not isinstance(image, Image.Image):
-            image = Image.open(image)
-
-        progress(0.05, desc="Preparing image…")
-        status = "Starting analysis…"
-
-        def on_progress(message: str) -> None:
-            nonlocal status
-            status = message
-            if "Loading MegaDetector" in message:
-                progress(0.15, desc=message)
-            elif "SpeciesNet" in message:
-                progress(0.55, desc=message)
-            else:
-                progress(0.5, desc=message)
-
-        result = analyze_single_image(
-            image,
-            threshold=threshold,
-            classify_species=classify_species,
-            filename="upload",
-            progress_callback=on_progress,
-        )
-        annotated = draw_detections(image, result.detections)
-        stats_html = format_stats_html(result)
-        results_df = build_results_dataframe(result)
-
-        annotated_path = save_annotated_image(annotated)
-        csv_path = detections_to_csv(result)
-        json_path = export_json(result)
-        bundle_path = export_bundle(result, annotated)
-
-        progress(1.0, desc="Analysis complete")
-        note_html = (
-            f'<div class="biodex-sample-note">{sample_note}</div>'
-            if sample_note and not sample_note.startswith("<div")
-            else (sample_note if sample_note else "")
-        )
-
-        return (
-            image,
-            annotated,
-            note_html,
-            stats_html,
-            results_df,
-            f"**Status:** {status} — complete.",
-            _enabled_download(annotated_path),
-            _enabled_download(csv_path),
-            _enabled_download(json_path),
-            _enabled_download(bundle_path),
-        )
-
-    except gr.Error:
-        raise
-    except ValueError as exc:
-        raise gr.Error(str(exc)) from exc
-    except RuntimeError as exc:
-        raise gr.Error(_format_model_error(exc)) from exc
-    except OSError as exc:
-        raise gr.Error(_format_model_error(exc)) from exc
-    except Exception as exc:
-        tb = traceback.format_exc()
-        raise gr.Error(
-            f"{_format_model_error(exc)}\n\n```\n{tb}\n```"
-        ) from exc
-
-
-def _resolve_batch_paths(
-    files: list[str] | None,
-    cache_paths: list[str] | None,
-) -> list[Path]:
-    """Prefer an uploaded folder; otherwise use paths from Load LILA cache."""
-    raw: list[str] = []
-    if files:
-        raw = list(files)
-    elif cache_paths:
-        raw = list(cache_paths)
-    return sorted(
-        Path(file_path)
-        for file_path in raw
-        if Path(file_path).suffix.lower() in IMAGE_SUFFIXES
-    )
-
-
-def _empty_batch_response(message: str) -> tuple[Any, ...]:
-    """Non-destructive response when Process is clicked without a folder."""
-    empty_table = pd.DataFrame(columns=FIELD_TABLE_COLUMNS)
-    empty_det = pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
-    return (
-        EMPTY_FIELD_SUMMARY,
-        empty_table,
-        message,
-        probe_speciesnet(active=True),
-        _disabled_download(),
-        _disabled_download(),
-        _disabled_download(),
-        [],
-        None,
-        None,
-        "",
-        empty_det,
-    )
-
-
-def analyze_batch(
-    files: list[str] | None,
-    cache_paths: list[str] | None,
-    threshold: float,
-    classify_species: bool,
-    progress: Any = gr.Progress(),  # noqa: B008
-    *,
-    demo_paths: list[Path] | None = None,
-    demo_mode: bool = False,
-) -> Iterator[tuple[Any, ...]]:
-    """Process an uploaded folder and prepare field-review outputs."""
-    paths = demo_paths if demo_paths is not None else _resolve_batch_paths(files, cache_paths)
-    if not paths:
-        yield _empty_batch_response(
-            "Load LILA cache or upload a folder (Folder upload & settings), then Process Folder."
-        )
-        return
-
-    try:
-        total_paths = len(paths)
-        progress(0.0, desc="Loading MegaDetector…")
-        warmup_models(species=classify_species)
-
-        images: list[tuple[str, Image.Image]] = []
-        for index, path in enumerate(paths):
-            images.append((path.name, Image.open(path).convert("RGB")))
-            if index % 12 == 0 or index == total_paths - 1:
-                progress(
-                    0.02 * ((index + 1) / total_paths),
-                    desc=f"Reading images… {index + 1}/{total_paths}",
-                )
-
-        def on_batch_progress(
-            current: int,
-            total: int,
-            message: str,
-            fraction: float | None = None,
-        ) -> None:
-            # Inference uses ~3–92%; exports/ZIP use the remainder.
-            image_frac = fraction if fraction is not None else current / total
-            progress(0.03 + 0.89 * image_frac, desc=message)
-
-        batch = run_batch(
-            images,
-            threshold=threshold,
-            classify_species=classify_species,
-            progress_callback=on_batch_progress,
-        )
-
-        path_by_name = {path.name: path for path in paths}
-        review_state: list[dict[str, Any]] = []
-        for result, (name, _image) in zip(batch.results, images, strict=True):
-            review_state.append(
-                {
-                    "filename": name,
-                    "source_path": str(path_by_name[name]),
-                    "result": result,
-                }
-            )
-
-        first = _first_review_frame(review_state)
-        orig, ann, label, det_df = _frame_view(first)
-
-        status = (
-            f"**{batch.total_images}** images · **{batch.animal_count}** animals · "
-            f"**{sum(1 for r in batch.results if r.animal_count >= 2)}** multi-animal frames"
-        )
-        if demo_mode:
-            status += (
-                f" · *quick demo — {total_paths} frames, "
-                f"1–{QUICK_DEMO_MAX_ANIMALS} animals each, species on*"
-            )
-        if batch.failed:
-            status += f" · **{len(batch.failed)}** failed"
-        if batch.species_enabled and batch.species_counts:
-            ranked = sorted(batch.species_counts.items(), key=lambda item: item[1], reverse=True)[:3]
-            status += " · **Species:** " + ", ".join(
-                f"{name} ({count})" for name, count in ranked
-            )
-
-        progress(0.93, desc="Writing CSV/JSON…")
-        csv_path = batch_to_csv(batch)
-        json_path = export_batch_json(batch)
-
-        # Show results immediately; build the heavy annotated ZIP afterward.
-        yield (
-            format_field_batch_summary(batch),
-            build_field_batch_dataframe(batch),
-            status,
-            batch_species_status_html(batch),
-            _enabled_download(csv_path),
-            _enabled_download(json_path),
-            _disabled_download(),
-            review_state,
-            orig,
-            ann,
-            label,
-            det_df,
-        )
-
-        if not demo_mode:
-            progress(0.95, desc="Building annotated ZIP…")
-            zip_path = build_batch_annotated_zip(
-                batch,
-                images,
-                max_images=BATCH_ANNOTATED_ZIP_LIMIT,
-            )
-            progress(1.0, desc="Batch complete")
-            yield (
-                format_field_batch_summary(batch),
-                build_field_batch_dataframe(batch),
-                status,
-                batch_species_status_html(batch),
-                _enabled_download(csv_path),
-                _enabled_download(json_path),
-                _enabled_download(zip_path),
-                review_state,
-                orig,
-                ann,
-                label,
-                det_df,
-            )
-        else:
-            progress(1.0, desc="Quick demo complete")
-
-    except gr.Error:
-        raise
-    except Exception as exc:
-        tb = traceback.format_exc()
-        raise gr.Error(f"Batch failed: {exc}\n\n```\n{tb}\n```") from exc
-
-
-def _first_review_frame(
-    review_state: list[dict[str, Any]],
-) -> dict[str, Any] | None:
-    if not review_state:
-        return None
-    for item in review_state:
-        result = cast(AnalysisResult, item["result"])
-        if result.animal_count > 0 and not result.error:
-            return item
-    return review_state[0]
-
-
-def _load_frame_images(frame: dict[str, Any]) -> tuple[Image.Image, Image.Image]:
-    """Load original + annotated views on demand (keeps review state small)."""
-    result = cast(AnalysisResult, frame["result"])
-    source_path = frame.get("source_path")
-    if source_path:
-        image = Image.open(source_path).convert("RGB")
-    else:
-        image = cast(Image.Image, frame["original"])
-    if result.error:
-        return image, image
-    annotated = draw_detections(image, result.detections)
-    return image, annotated
-
-
-def _frame_view(
-    frame: dict[str, Any] | None,
-) -> tuple[Image.Image | None, Image.Image | None, str, pd.DataFrame]:
-    if frame is None:
-        return None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
-    result = cast(AnalysisResult, frame["result"])
-    label = (
-        f"**{frame['filename']}** — {result.animal_count} animals, "
-        f"{result.total} detections"
-    )
-    if result.species_enabled and result.animal_count:
-        top_species = _top_species_for_result(result)
-        if top_species:
-            label += f" · species: **{top_species}**"
-        elif result.species_warning:
-            label += f" · *{result.species_warning}*"
-    original, annotated = _load_frame_images(frame)
-    return (
-        original,
-        annotated,
-        label,
-        build_minimal_detections_dataframe(result),
-    )
-
-
-def load_lila_cache() -> tuple[list[str], str]:
-    """Load file paths from the local LILA demo cache into session state."""
-    paths: list[Path] = []
-    if LILA_CACHE_DIR.is_dir():
-        for pattern in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
-            paths.extend(LILA_CACHE_DIR.glob(pattern))
-    files = sorted(str(path) for path in paths)
-    if not files:
-        raise gr.Error(
-            "LILA cache empty. Run:\n  python -m scripts.demo_batch --prepare-only"
-        )
-    _start_model_warmup(species=True)
-    return (
-        files,
-        f"**{len(files)}** images loaded — **Quick demo** (10 pics, species on) or **Process Folder** (full run).",
-    )
-
-
-def select_batch_frame(
-    review_state: list[dict[str, Any]] | None,
-    evt: gr.SelectData,
-) -> tuple[Any, ...]:
-    """Show original + annotated view for a selected table row."""
-    if not review_state or evt.index is None:
-        return None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
-    row = evt.index[0]
-    if row < 0 or row >= len(review_state):
-        return None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
-    orig, ann, label, det_df = _frame_view(review_state[row])
-    return orig, ann, label, det_df
-
-
-def clear_batch_review() -> tuple[Any, ...]:
-    """Reset the field review panel."""
-    empty_table = pd.DataFrame(columns=FIELD_TABLE_COLUMNS)
-    empty_det = pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
-    return (
-        EMPTY_FIELD_SUMMARY,
-        empty_table,
-        "Load LILA cache → Process Folder",
-        probe_speciesnet(active=True),
-        _disabled_download(),
-        _disabled_download(),
-        _disabled_download(),
-        [],
-        None,
-        None,
-        "",
-        empty_det,
-        [],
-    )
-
-
-def run_quick_demo(
-    files: list[str] | None,
-    cache_paths: list[str] | None,
-    threshold: float,
-    progress: Any = gr.Progress(),  # noqa: B008
-) -> Iterator[tuple[Any, ...]]:
-    """Fast screenshot demo: 10 frames, ≤5 animals each, with SpeciesNet labels."""
-    all_paths = _resolve_batch_paths(files, cache_paths)
-    if not all_paths:
-        yield _empty_batch_response(
-            "Load LILA cache first, then click **Quick demo**."
-        )
-        return
-
-    _start_model_warmup(species=True)
-
-    cache_dir = all_paths[0].parent
-    demo_paths = ensure_quick_demo_paths(cache_dir, threshold=threshold)
-    if len(demo_paths) < QUICK_DEMO_COUNT:
-        raise gr.Error(
-            f"Quick demo needs {QUICK_DEMO_COUNT} frames with "
-            f"{1}–{QUICK_DEMO_MAX_ANIMALS} detected animals (no blanks). "
-            f"Only {len(demo_paths)} matched — load the full LILA cache first: "
-            "python -m scripts.demo_batch --prepare-only"
-        )
-
-    yield from analyze_batch(
-        files,
-        cache_paths,
-        threshold,
-        classify_species=True,
-        progress=progress,
-        demo_paths=demo_paths,
-        demo_mode=True,
-    )
-
-
-def refresh_species_status(enabled: bool) -> str:
-    """Update the SpeciesNet status pill and warm models when enabled."""
-    if enabled:
-        _start_model_warmup(species=True)
-    return probe_speciesnet(active=enabled)
-
-
-def analyze_spot_check(
-    image: Image.Image | None,
-    threshold: float,
-    classify_species: bool,
-    progress: Any = gr.Progress(),  # noqa: B008
-) -> tuple[Any, ...]:
-    """Single-image analysis for the collapsed spot-check panel."""
-    results = analyze_image(
-        image,
-        threshold=threshold,
-        classify_species=classify_species,
-        progress=progress,
-    )
-    return results[0], results[1], results[3], results[4], results[5]
 
 
 def build_app() -> gr.Blocks:
-    """Construct the minimalist field-review Gradio application."""
+    """Construct the tabbed BioDex Gradio application."""
     settings = get_settings()
-    with gr.Blocks(title=f"BioDex Field Review v{BIODEX_VERSION}") as demo:
+    stored = load_settings()
+    page_class = "biodex-page biodex-dark" if stored.get("dark_mode") else "biodex-page"
+
+    with gr.Blocks(title=f"BioDex v{BIODEX_VERSION}") as demo:
         review_state = gr.State([])
         batch_paths_state = gr.State([])
+        last_batch = gr.State(None)
 
-        with gr.Column(elem_classes=["biodex-page", "field-device"]):
+        with gr.Column(elem_classes=[page_class, "field-device"]) as page_column:
             gr.HTML(header_html())
 
-            batch_stats = gr.HTML(EMPTY_FIELD_SUMMARY, elem_classes=["field-stats-strip"])
-
-            with gr.Row(elem_classes=["field-action-bar"]):
-                load_cache_btn = gr.Button("Load LILA cache", scale=1, size="lg")
-                quick_demo_btn = gr.Button(
-                    f"Quick demo ({QUICK_DEMO_COUNT} pics + species)",
-                    variant="secondary",
-                    scale=1,
-                    size="lg",
-                )
-                batch_btn = gr.Button("Process Folder", variant="primary", scale=2, size="lg")
-                clear_btn = gr.Button("Clear", scale=1)
-
-            batch_status = gr.Markdown(
-                f"Load LILA → **Quick demo** ({QUICK_DEMO_COUNT} pics, 1–{QUICK_DEMO_MAX_ANIMALS} animals, no blanks, ~3–4 min) · **Process Folder** (full 72)",
-                elem_classes=["field-status-line"],
-            )
-
-            with gr.Row(elem_classes=["field-species-bar"]):
-                classify_species = gr.Checkbox(
-                    value=True,
-                    label="Species classification (SpeciesNet)",
-                    scale=0,
-                )
-                species_status = gr.HTML(
-                    SPECIES_STATUS_INITIAL,
-                    elem_classes=["field-species-status"],
-                )
-
-            with gr.Accordion("Folder upload & threshold", open=False):
-                batch_files = gr.File(
-                    label="Camera-trap folder",
-                    file_count="directory",
-                    file_types=["image"],
-                    type="filepath",
-                )
-                threshold = gr.Slider(
-                    minimum=0.05,
-                    maximum=0.95,
-                    value=settings.default_threshold,
-                    step=0.05,
-                    label="Confidence threshold",
-                )
-
-            frame_label = gr.Markdown("", elem_classes=["field-frame-title"])
-            with gr.Row(elem_classes=["field-image-panel", "field-viewer-row"]):
-                review_original = gr.Image(
-                    label="Original",
-                    type="pil",
-                    interactive=False,
-                    height=420,
-                    elem_classes=["field-viewer-img"],
-                )
-                review_annotated = gr.Image(
-                    label="Annotated",
-                    type="pil",
-                    interactive=False,
-                    height=420,
-                    elem_classes=["field-viewer-img"],
-                )
-
-            with gr.Column(elem_classes=["field-table-wrap"]):
-                batch_table = gr.Dataframe(
-                    headers=FIELD_TABLE_COLUMNS,
-                    label="Frames — click a row to review",
-                    interactive=False,
-                    wrap=True,
-                )
-
-            with gr.Column(elem_classes=["field-detections-wrap"]):
-                frame_detections = gr.Dataframe(
-                    headers=FIELD_DETECTION_COLUMNS,
-                    label="Detections in selected frame",
-                    interactive=False,
-                    wrap=True,
-                )
-
-            with gr.Accordion("Export results", open=False):
-                with gr.Row(elem_classes=["field-export-row"]):
-                    batch_csv_btn = gr.DownloadButton("Master CSV", interactive=False)
-                    batch_json_btn = gr.DownloadButton("Master JSON", interactive=False)
-                    batch_zip_btn = gr.DownloadButton("Annotated ZIP", variant="primary", interactive=False)
-
-            with gr.Accordion("Single-image spot check", open=False):
-                with gr.Row():
-                    input_image = gr.Image(label="Upload one image", type="pil", height=240)
-                    analyze_one_btn = gr.Button("Analyze", variant="secondary")
-                with gr.Row():
-                    spot_original = gr.Image(label="Original", type="pil", interactive=False, height=280)
-                    spot_annotated = gr.Image(label="Annotated", type="pil", interactive=False, height=280)
-                spot_stats = gr.HTML("")
-                spot_table = gr.Dataframe(headers=RESULTS_COLUMNS, interactive=False, wrap=True)
+            with gr.Tabs():
+                build_dashboard_tab(last_batch)
+                batch_w = build_batch_tab(settings, review_state, batch_paths_state, last_batch)
+                video_w = build_video_tab()
+                analytics_w = build_analytics_tab(last_batch)
+                settings_w = build_settings_tab(page_column)
 
             gr.HTML(footer_html())
 
-            classify_species.change(
-                fn=refresh_species_status,
-                inputs=[classify_species],
-                outputs=[species_status],
-            )
+        # Batch tab wiring
+        batch_w["classify_species"].change(
+            fn=refresh_species_status,
+            inputs=[batch_w["classify_species"]],
+            outputs=[batch_w["species_status"]],
+        )
+        batch_w["load_cache_btn"].click(
+            fn=load_lila_cache,
+            outputs=[batch_w["batch_paths_state"], batch_w["batch_status"]],
+        )
+        batch_w["quick_demo_btn"].click(
+            fn=run_quick_demo,
+            inputs=[batch_w["batch_files"], batch_w["batch_paths_state"], batch_w["threshold"]],
+            outputs=[
+                batch_w["batch_stats"],
+                batch_w["batch_table"],
+                batch_w["batch_status"],
+                batch_w["species_status"],
+                batch_w["batch_csv_btn"],
+                batch_w["batch_json_btn"],
+                batch_w["batch_zip_btn"],
+                batch_w["batch_wi_btn"],
+                batch_w["batch_inat_btn"],
+                batch_w["batch_eco_btn"],
+                batch_w["review_state"],
+                batch_w["review_original"],
+                batch_w["review_annotated"],
+                batch_w["frame_label"],
+                batch_w["frame_detections"],
+                last_batch,
+            ],
+            show_progress="minimal",
+        )
+        batch_w["batch_btn"].click(
+            fn=analyze_batch,
+            inputs=[
+                batch_w["batch_files"],
+                batch_w["batch_paths_state"],
+                batch_w["threshold"],
+                batch_w["classify_species"],
+            ],
+            outputs=[
+                batch_w["batch_stats"],
+                batch_w["batch_table"],
+                batch_w["batch_status"],
+                batch_w["species_status"],
+                batch_w["batch_csv_btn"],
+                batch_w["batch_json_btn"],
+                batch_w["batch_zip_btn"],
+                batch_w["batch_wi_btn"],
+                batch_w["batch_inat_btn"],
+                batch_w["batch_eco_btn"],
+                batch_w["review_state"],
+                batch_w["review_original"],
+                batch_w["review_annotated"],
+                batch_w["frame_label"],
+                batch_w["frame_detections"],
+                last_batch,
+            ],
+            show_progress="minimal",
+        )
+        batch_w["cancel_btn"].click(fn=request_cancel, outputs=[batch_w["batch_status"]])
+        batch_w["batch_table"].select(
+            fn=select_batch_frame,
+            inputs=[batch_w["review_state"]],
+            outputs=[
+                batch_w["review_original"],
+                batch_w["review_annotated"],
+                batch_w["frame_label"],
+                batch_w["frame_detections"],
+            ],
+        )
+        batch_w["clear_btn"].click(
+            fn=clear_batch_review,
+            outputs=[
+                batch_w["batch_stats"],
+                batch_w["batch_table"],
+                batch_w["batch_status"],
+                batch_w["species_status"],
+                batch_w["batch_csv_btn"],
+                batch_w["batch_json_btn"],
+                batch_w["batch_zip_btn"],
+                batch_w["batch_wi_btn"],
+                batch_w["batch_inat_btn"],
+                batch_w["batch_eco_btn"],
+                batch_w["review_state"],
+                batch_w["review_original"],
+                batch_w["review_annotated"],
+                batch_w["frame_label"],
+                batch_w["frame_detections"],
+                batch_w["batch_paths_state"],
+                last_batch,
+            ],
+        )
+        batch_w["analyze_one_btn"].click(
+            fn=analyze_spot_check,
+            inputs=[batch_w["input_image"], batch_w["threshold"], batch_w["classify_species"]],
+            outputs=[
+                batch_w["spot_original"],
+                batch_w["spot_annotated"],
+                batch_w["spot_stats"],
+                batch_w["spot_table"],
+                batch_w["batch_status"],
+            ],
+            show_progress="minimal",
+        )
 
-            load_cache_btn.click(
-                fn=load_lila_cache,
-                outputs=[batch_paths_state, batch_status],
-            )
+        # Video tab
+        video_w["video_analyze_btn"].click(
+            fn=analyze_video_ui,
+            inputs=[
+                video_w["video_file"],
+                video_w["video_threshold"],
+                video_w["video_classify"],
+                video_w["video_fps"],
+                video_w["video_max_frames"],
+            ],
+            outputs=[
+                video_w["video_status"],
+                video_w["video_timeline_btn"],
+                video_w["video_gallery"],
+            ],
+            show_progress="minimal",
+        )
+        video_w["video_cancel_btn"].click(fn=request_cancel, outputs=[video_w["video_status"]])
 
-            quick_demo_btn.click(
-                fn=run_quick_demo,
-                inputs=[batch_files, batch_paths_state, threshold],
-                outputs=[
-                    batch_stats,
-                    batch_table,
-                    batch_status,
-                    species_status,
-                    batch_csv_btn,
-                    batch_json_btn,
-                    batch_zip_btn,
-                    review_state,
-                    review_original,
-                    review_annotated,
-                    frame_label,
-                    frame_detections,
-                ],
-                show_progress="minimal",
-            )
+        # Analytics tab
+        analytics_w["analytics_refresh"].click(
+            fn=compute_analytics,
+            inputs=[last_batch],
+            outputs=[
+                analytics_w["diversity_html"],
+                analytics_w["heatmap_image"],
+                analytics_w["species_chart"],
+            ],
+        )
 
-            batch_btn.click(
-                fn=analyze_batch,
-                inputs=[batch_files, batch_paths_state, threshold, classify_species],
-                outputs=[
-                    batch_stats,
-                    batch_table,
-                    batch_status,
-                    species_status,
-                    batch_csv_btn,
-                    batch_json_btn,
-                    batch_zip_btn,
-                    review_state,
-                    review_original,
-                    review_annotated,
-                    frame_label,
-                    frame_detections,
-                ],
-                show_progress="minimal",
-            )
-
-            batch_table.select(
-                fn=select_batch_frame,
-                inputs=[review_state],
-                outputs=[review_original, review_annotated, frame_label, frame_detections],
-            )
-
-            clear_btn.click(
-                fn=clear_batch_review,
-                outputs=[
-                    batch_stats,
-                    batch_table,
-                    batch_status,
-                    species_status,
-                    batch_csv_btn,
-                    batch_json_btn,
-                    batch_zip_btn,
-                    review_state,
-                    review_original,
-                    review_annotated,
-                    frame_label,
-                    frame_detections,
-                    batch_paths_state,
-                ],
-            )
-
-            analyze_one_btn.click(
-                fn=analyze_spot_check,
-                inputs=[input_image, threshold, classify_species],
-                outputs=[
-                    spot_original,
-                    spot_annotated,
-                    spot_stats,
-                    spot_table,
-                    batch_status,
-                ],
-                show_progress="minimal",
-            )
+        # Settings tab
+        settings_w["settings_save"].click(
+            fn=apply_settings,
+            inputs=[
+                settings_w["settings_threshold"],
+                settings_w["settings_species"],
+                settings_w["settings_dark"],
+                settings_w["settings_geofence"],
+            ],
+            outputs=[
+                batch_w["threshold"],
+                batch_w["classify_species"],
+                page_column,
+            ],
+        )
 
     return cast(gr.Blocks, demo)
 
@@ -787,8 +242,10 @@ def launch_app() -> None:
     settings = get_settings()
     host = settings.host
     port = settings.port
-    print(f"BioDex Field Review v{BIODEX_VERSION} at http://{host}:{port}")
-    print("Load a folder or click Load LILA cache, then Process Folder.")
+    stored = load_settings()
+    css = CUSTOM_CSS + (dark_mode_css() if stored.get("dark_mode") else "")
+    print(f"BioDex v{BIODEX_VERSION} at http://{host}:{port}")
+    print("Open the Batch tab to process a folder, or try Quick demo.")
     _start_model_warmup(species=True)
     app = build_app()
     if settings.enable_queue:
@@ -798,7 +255,7 @@ def launch_app() -> None:
         "server_name": host,
         "server_port": port,
         "theme": APP_THEME,
-        "css": CUSTOM_CSS,
+        "css": css,
         "auth": settings.gradio_auth,
         "show_error": True,
         "allowed_paths": [str(biodex_cache), str(LILA_CACHE_DIR)],

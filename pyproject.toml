@@ -5,12 +5,21 @@ build-backend = "hatchling.build"
 [project]
 name = "biodex"
 dynamic = ["version"]
-description = "Local, privacy-first AI for wildlife camera trap analysis"
+description = "Local, privacy-first AI for wildlife camera trap analysis and conservation monitoring"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10,<3.13"
 authors = [{ name = "FratresMedAI" }]
-keywords = ["camera-trap", "wildlife", "megadetector", "speciesnet", "conservation"]
+keywords = [
+    "camera-trap",
+    "wildlife",
+    "megadetector",
+    "speciesnet",
+    "conservation",
+    "defensive-monitoring",
+    "biodiversity",
+    "wildlife-insights",
+]
 dependencies = [
     "Pillow>=9.5",
     "numpy>=1.26.4,<2.0",
@@ -37,6 +46,31 @@ dev = [
 ]
 desktop = [
     "pyinstaller>=6.0",
+]
+video = [
+    "opencv-python-headless>=4.8",
+]
+analytics = [
+    "matplotlib>=3.7",
+    "seaborn>=0.13",
+]
+edge = [
+    "onnxruntime>=1.16; platform_system != 'Darwin' or platform_machine != 'arm64'",
+]
+all = [
+    "gradio>=5.0,<7.0",
+    "megadetector>=10.0,<11.0",
+    "speciesnet>=5.0,<6.0",
+    "torch>=2.0",
+    "pytest>=8.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "types-Pillow",
+    "pyinstaller>=6.0",
+    "opencv-python-headless>=4.8",
+    "matplotlib>=3.7",
+    "seaborn>=0.13",
+    "onnxruntime>=1.16",
 ]
 
 [project.scripts]
@@ -91,6 +125,14 @@ module = [
     "typer.*",
     "torch",
     "torch.*",
+    "onnxruntime",
+    "onnxruntime.*",
+    "cv2",
+    "cv2.*",
+    "matplotlib",
+    "matplotlib.*",
+    "seaborn",
+    "seaborn.*",
 ]
 ignore_missing_imports = true
 

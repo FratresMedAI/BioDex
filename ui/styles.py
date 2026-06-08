@@ -814,3 +814,42 @@ CUSTOM_CSS = """
     opacity: 0.7;
 }
 """
+
+DARK_CSS = """
+.biodex-dark {
+    --bd-cream: #1a1f1c;
+    --bd-surface: #232923;
+    --bd-sage: #2a322c;
+    --bd-sage-deep: #1e2420;
+    --bd-sand: #2e3630;
+    --bd-tan: #353d37;
+    --bd-border: #4a554e;
+    --bd-moss: #6aab7a;
+    --bd-moss-hover: #5a9568;
+    --bd-earth: #a89070;
+    --bd-text: #e8ebe9;
+    --bd-line: #5a6560;
+    --bd-text-muted: #a8b0ab;
+}
+.biodex-dark.gradio-container,
+.biodex-dark .gradio-container {
+    background: var(--bd-cream) !important;
+    color-scheme: dark !important;
+}
+@media (max-width: 640px) {
+    .gradio-container.field-device {
+        padding: 0 0.5rem 1rem !important;
+    }
+    .field-action-bar {
+        flex-direction: column !important;
+    }
+    .field-viewer-row {
+        flex-direction: column !important;
+    }
+}
+"""
+
+
+def dark_mode_css() -> str:
+    """Return dark mode and mobile CSS overrides."""
+    return DARK_CSS

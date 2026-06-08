@@ -58,3 +58,42 @@ class BioDexSettings:
 def get_settings() -> BioDexSettings:
     """Return cached settings snapshot from the current environment."""
     return BioDexSettings.from_env()
+
+
+def _env_int(key: str, default: int) -> int:
+    raw = os.getenv(key)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise ValueError(f"Invalid int for {key}={raw!r}") from exc
+
+
+@dataclass(frozen=True)
+class ModelSettings:
+    """Model pipeline settings; override via BIODEX_* environment variables."""
+
+    detector_id: str
+    classifier_id: str
+    torch_compile: bool
+    device: str
+    geofence_region: str | None
+    cache_size: int
+
+    @classmethod
+    def from_env(cls) -> ModelSettings:
+        default_classifier = "speciesnet"
+        return cls(
+            detector_id=os.getenv("BIODEX_DETECTOR_MODEL", "MDV5A"),
+            classifier_id=os.getenv("BIODEX_CLASSIFIER_MODEL", default_classifier),
+            torch_compile=_env_bool("BIODEX_TORCH_COMPILE", False),
+            device=os.getenv("BIODEX_DEVICE", "auto"),
+            geofence_region=os.getenv("BIODEX_GEOFENCE_REGION") or None,
+            cache_size=_env_int("BIODEX_MODEL_CACHE_SIZE", 2),
+        )
+
+
+def get_model_settings() -> ModelSettings:
+    """Return model settings snapshot from the current environment."""
+    return ModelSettings.from_env()

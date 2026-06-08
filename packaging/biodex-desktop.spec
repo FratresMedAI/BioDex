@@ -51,9 +51,15 @@ hiddenimports = (
     + ort_hiddenimports
     + collect_submodules("core")
     + collect_submodules("ui")
+    + collect_submodules("core.models")
     + [
         "app",
-        "megadetector.detection.run_detector",
+        "core.video",
+        "core.analytics",
+        "core.models",
+        "core.models.megadetector",
+        "core.models.speciesnet",
+        "core.models.registry",
         "speciesnet",
         "PIL",
         "pandas",

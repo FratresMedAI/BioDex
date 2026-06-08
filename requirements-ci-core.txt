@@ -7,3 +7,6 @@ pytest>=8.0
 ruff>=0.4
 mypy>=1.10
 types-Pillow
+
+# Optional extra import guards (no heavy deps installed in CI):
+# video, analytics, edge tested via mocks

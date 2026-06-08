@@ -12,25 +12,38 @@ from core.detector import (
     _run_megadetector,
     analyze_single_image,
 )
-from core.types import ANIMAL_CATEGORY_ID, AnalysisResult
+from core.types import ANIMAL_CATEGORY_ID, AnalysisResult, DetectionRecord, SpeciesPrediction
 from PIL import Image, ImageOps
 
 
-class _FakeDetector:
-    """Minimal MegaDetector stand-in for unit tests."""
+class _FakeDetectorAdapter:
+    """Minimal detector adapter stand-in for unit tests."""
+
+    model_id = "MDV5A"
 
     def __init__(self, detections: list[dict[str, Any]] | None = None) -> None:
         self._detections = detections or []
 
-    def generate_detections_one_image(
-        self,
-        _image_array: object,
-        detection_threshold: float = 0.25,
-    ) -> dict[str, list[dict[str, Any]]]:
-        filtered = [
-            d for d in self._detections if float(d.get("conf", 0.0)) >= detection_threshold
-        ]
-        return {"detections": filtered}
+    @property
+    def is_loaded(self) -> bool:
+        return True
+
+    def load(self) -> None:
+        return None
+
+    def unload(self) -> None:
+        return None
+
+    def predict(self, _image: Image.Image, threshold: float) -> list[dict[str, Any]]:
+        return [d for d in self._detections if float(d.get("conf", 0.0)) >= threshold]
+
+    def build_records(self, raw_detections: list[dict[str, Any]]) -> list[DetectionRecord]:
+        return _build_detection_records(raw_detections)
+
+
+class _BrokenDetectorAdapter(_FakeDetectorAdapter):
+    def predict(self, _image: Image.Image, threshold: float) -> list[dict[str, Any]]:
+        raise RuntimeError("GPU OOM")
 
 
 @pytest.fixture
@@ -85,7 +98,7 @@ def test_build_detection_records_bbox_edges() -> None:
     raw = [
         {"category": "1", "conf": 0.5, "bbox": [0.0, 0.0, 1.0, 1.0]},
         {"category": "1", "conf": 0.4, "bbox": [-0.1, -0.2, 0.5, 0.5]},
-        {"category": "1", "conf": 0.3},  # missing bbox defaults
+        {"category": "1", "conf": 0.3},
     ]
     records = _build_detection_records(raw)
     assert len(records) == 3
@@ -100,8 +113,8 @@ def test_run_megadetector_threshold_zero(monkeypatch: pytest.MonkeyPatch) -> Non
         {"category": "2", "conf": 0.99, "bbox": [0.2, 0.2, 0.1, 0.1]},
     ]
     monkeypatch.setattr(
-        "core.detector.get_detector",
-        lambda: _FakeDetector(detections),
+        "core.detector._registry_get_detector",
+        lambda: _FakeDetectorAdapter(detections),
     )
     image = Image.new("RGB", (20, 20))
     out = _run_megadetector(image, threshold=0.0)
@@ -114,8 +127,8 @@ def test_run_megadetector_threshold_one(monkeypatch: pytest.MonkeyPatch) -> None
         {"category": "1", "conf": 0.5, "bbox": [0.2, 0.2, 0.1, 0.1]},
     ]
     monkeypatch.setattr(
-        "core.detector.get_detector",
-        lambda: _FakeDetector(detections),
+        "core.detector._registry_get_detector",
+        lambda: _FakeDetectorAdapter(detections),
     )
     image = Image.new("RGB", (20, 20))
     out = _run_megadetector(image, threshold=1.0)
@@ -126,7 +139,10 @@ def test_analyze_single_image_blank(
     monkeypatch: pytest.MonkeyPatch,
     rgb_image: Image.Image,
 ) -> None:
-    monkeypatch.setattr("core.detector.get_detector", lambda: _FakeDetector([]))
+    monkeypatch.setattr(
+        "core.detector._registry_get_detector",
+        lambda: _FakeDetectorAdapter([]),
+    )
     result = analyze_single_image(rgb_image, threshold=0.25, classify_species=False)
     assert result.is_blank is True
     assert result.total == 0
@@ -142,11 +158,11 @@ def test_analyze_single_image_species_disabled(
     sample_detection: dict[str, Any],
 ) -> None:
     monkeypatch.setattr(
-        "core.detector.get_detector",
-        lambda: _FakeDetector([sample_detection]),
+        "core.detector._registry_get_detector",
+        lambda: _FakeDetectorAdapter([sample_detection]),
     )
     enrich = MagicMock(side_effect=AssertionError("species should not run"))
-    monkeypatch.setattr("core.detector.enrich_with_species", enrich)
+    monkeypatch.setattr("core.detector._registry_get_classifier", enrich)
 
     result = analyze_single_image(rgb_image, classify_species=False)
     assert result.species_enabled is False
@@ -159,8 +175,6 @@ def test_analyze_single_image_species_enabled(
     rgb_image: Image.Image,
     sample_detection: dict[str, Any],
 ) -> None:
-    from core.types import DetectionRecord, SpeciesPrediction
-
     enriched = DetectionRecord(
         detection_id=1,
         category_id=ANIMAL_CATEGORY_ID,
@@ -169,14 +183,18 @@ def test_analyze_single_image_species_enabled(
         bbox=[0.1, 0.2, 0.3, 0.4],
         species=SpeciesPrediction(label="Ocelot", confidence=0.88),
     )
+
+    class _FakeClassifier:
+        model_id = "speciesnet"
+
+        def enrich(self, *_args: object, **_kwargs: object) -> tuple[list[DetectionRecord], list[str]]:
+            return ([enriched], [])
+
     monkeypatch.setattr(
-        "core.detector.get_detector",
-        lambda: _FakeDetector([sample_detection]),
+        "core.detector._registry_get_detector",
+        lambda: _FakeDetectorAdapter([sample_detection]),
     )
-    monkeypatch.setattr(
-        "core.detector.enrich_with_species",
-        lambda *_args, **_kwargs: ([enriched], []),
-    )
+    monkeypatch.setattr("core.detector._registry_get_classifier", lambda: _FakeClassifier())
 
     result = analyze_single_image(rgb_image, classify_species=True)
     assert result.species_enabled is True
@@ -189,8 +207,6 @@ def test_analyze_single_image_classification_failure_warning(
     rgb_image: Image.Image,
     sample_detection: dict[str, Any],
 ) -> None:
-    from core.types import DetectionRecord
-
     detection = DetectionRecord(
         detection_id=1,
         category_id=ANIMAL_CATEGORY_ID,
@@ -198,17 +214,18 @@ def test_analyze_single_image_classification_failure_warning(
         confidence=0.9,
         bbox=[0.1, 0.2, 0.3, 0.4],
     )
+
+    class _WarnClassifier:
+        model_id = "speciesnet"
+
+        def enrich(self, *_args: object, **_kwargs: object) -> tuple[list[DetectionRecord], list[str]]:
+            return ([detection], ["Species classification failed during inference."])
+
     monkeypatch.setattr(
-        "core.detector.get_detector",
-        lambda: _FakeDetector([sample_detection]),
+        "core.detector._registry_get_detector",
+        lambda: _FakeDetectorAdapter([sample_detection]),
     )
-    monkeypatch.setattr(
-        "core.detector.enrich_with_species",
-        lambda *_args, **_kwargs: (
-            [detection],
-            ["Species classification failed during inference."],
-        ),
-    )
+    monkeypatch.setattr("core.detector._registry_get_classifier", lambda: _WarnClassifier())
 
     result = analyze_single_image(rgb_image, classify_species=True)
     assert any("Species classification failed" in w for w in result.warnings)
@@ -218,13 +235,12 @@ def test_run_megadetector_inference_failure(
     monkeypatch: pytest.MonkeyPatch,
     rgb_image: Image.Image,
 ) -> None:
-    class _BrokenDetector:
-        def generate_detections_one_image(self, *_args: object, **_kwargs: object) -> None:
-            raise RuntimeError("GPU OOM")
+    monkeypatch.setattr(
+        "core.detector._registry_get_detector",
+        lambda: _BrokenDetectorAdapter(),
+    )
 
-    monkeypatch.setattr("core.detector.get_detector", lambda: _BrokenDetector())
-
-    with pytest.raises(RuntimeError, match="MegaDetector inference failed"):
+    with pytest.raises(RuntimeError, match="GPU OOM"):
         _run_megadetector(rgb_image, threshold=0.25)
 
 

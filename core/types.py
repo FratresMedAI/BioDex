@@ -1,15 +1,16 @@
 """
-Shared data types and geometry helpers for BioDex v0.4.
+Shared data types and geometry helpers for BioDex v0.5.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 
 from PIL import Image
 
-BIODEX_VERSION = "0.4"
+BIODEX_VERSION = "0.5.0"
 MODEL_ID = "MDV5A"
 
 # MegaDetector category IDs.
@@ -121,6 +122,21 @@ class BatchResult:
     species_counts: dict[str, int] = field(default_factory=dict)
     threshold: float = 0.25
     species_enabled: bool = False
+    interrupted: bool = False
+
+
+@dataclass
+class VideoResult:
+    """Aggregate output from analyzing a camera-trap video clip."""
+
+    source_path: Path
+    frames: list[AnalysisResult]
+    key_frames: list[tuple[int, AnalysisResult]]
+    timeline_json: Path | None
+    species_counts: dict[str, int] = field(default_factory=dict)
+    total_frames: int = 0
+    fps_sampled: float | None = None
+    interrupted: bool = False
 
 
 def get_category_label(category_id: str) -> str:

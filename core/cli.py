@@ -1,16 +1,19 @@
-"""BioDex headless CLI — batch folder processing."""
+"""BioDex headless CLI — batch folder processing and video analysis."""
 
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import sys
 from pathlib import Path
 
 from PIL import Image
 
-from core.batch import run_batch
+from core.audit_log import append_audit_entry
+from core.batch import run_batch_from_paths
 from core.batch_report import format_batch_report
+from core.config import get_model_settings
 from core.exports import (
     batch_to_csv,
     build_batch_annotated_zip,
@@ -20,6 +23,7 @@ from core.exports import (
     save_annotated_image,
 )
 from core.types import BatchResult
+from core.video import analyze_video, export_video_timeline
 from core.visualization import draw_detections
 
 logger = logging.getLogger(__name__)
@@ -34,6 +38,11 @@ def _configure_logging(verbose: bool) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         force=True,
     )
+
+
+def _apply_torch_compile_env(enable: bool) -> None:
+    if enable:
+        os.environ["BIODEX_TORCH_COMPILE"] = "1"
 
 
 def _collect_image_paths(input_dir: Path, recursive: bool) -> list[Path]:
@@ -88,6 +97,8 @@ def run_batch_cli(
     classify_species: bool = False,
     recursive: bool = True,
     workers: int = 1,
+    chunk_size: int | None = None,
+    torch_compile: bool = False,
     verbose: bool = False,
     zip_limit: int = 100,
 ) -> int:
@@ -98,12 +109,10 @@ def run_batch_cli(
         0 when all images succeed, 1 on fatal error, 2 when some images fail.
     """
     _configure_logging(verbose)
-
-    if workers != 1:
-        logger.warning(
-            "Parallel workers are not implemented yet; running sequentially (--workers=%s).",
-            workers,
-        )
+    _apply_torch_compile_env(torch_compile)
+    settings = get_model_settings()
+    if torch_compile:
+        logger.info("torch.compile enabled via CLI (ModelSettings.torch_compile=%s)", settings.torch_compile)
 
     try:
         from tqdm import tqdm
@@ -127,35 +136,34 @@ def run_batch_cli(
     per_image_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(
-        "Starting batch: %s images from %s (species=%s, threshold=%s, recursive=%s)",
+        "Starting batch: %s images from %s (species=%s, threshold=%s, recursive=%s, workers=%s, chunk=%s)",
         len(image_paths),
         input_dir,
         classify_species,
         threshold,
         recursive,
+        workers,
+        chunk_size,
     )
 
-    pairs: list[tuple[str, Image.Image]] = []
-    path_by_name: dict[str, Path] = {}
-    for path in image_paths:
-        rel_name = _relative_name(path, input_dir)
-        path_by_name[rel_name] = path
-        with Image.open(path) as img:
-            pairs.append((rel_name, img.convert("RGB")))
+    path_pairs = [(_relative_name(path, input_dir), str(path)) for path in image_paths]
+    path_by_name = {name: Path(path) for name, path in path_pairs}
 
-    progress = tqdm(total=len(pairs), desc="Analyzing", unit="image")
+    progress = tqdm(total=len(path_pairs), desc="Analyzing", unit="image")
 
-    def on_progress(current: int, total: int, message: str) -> None:
+    def on_progress(current: int, total: int, message: str, fraction: float | None = None) -> None:
         progress.set_description(message[:60])
         progress.n = current
         progress.refresh()
-        logger.debug("[%s/%s] %s", current, total, message)
+        logger.debug("[%s/%s] %s (%.1f%%)", current, total, message, (fraction or 0) * 100)
 
-    batch = run_batch(
-        pairs,
+    batch = run_batch_from_paths(
+        path_pairs,
         threshold=threshold,
         classify_species=classify_species,
         progress_callback=on_progress,
+        chunk_size=chunk_size,
+        workers=workers,
     )
     progress.close()
 
@@ -190,7 +198,11 @@ def run_batch_cli(
     shutil.move(export_batch_json(batch), summary_json_dest)
 
     annotated_zip_dest: Path | None = None
-    temp_zip = build_batch_annotated_zip(batch, pairs, max_images=zip_limit)
+    pairs_for_zip: list[tuple[str, Image.Image]] = []
+    for name, path in path_pairs:
+        with Image.open(path) as img:
+            pairs_for_zip.append((name, img.convert("RGB")))
+    temp_zip = build_batch_annotated_zip(batch, pairs_for_zip, max_images=zip_limit)
     if temp_zip:
         annotated_zip_dest = output_dir / "batch_annotated.zip"
         shutil.move(temp_zip, annotated_zip_dest)
@@ -204,7 +216,22 @@ def run_batch_cli(
         annotated_zip=annotated_zip_dest,
     )
 
+    append_audit_entry(
+        "batch_complete",
+        {
+            "input_dir": str(input_dir),
+            "output_dir": str(output_dir),
+            "total_images": batch.total_images,
+            "failed": len(batch.failed),
+            "interrupted": batch.interrupted,
+        },
+    )
+
     print(report_path.read_text(encoding="utf-8"))
+
+    if batch.interrupted:
+        logger.warning("Batch interrupted after %s images.", batch.processed_count)
+        return 2
 
     if batch.failed:
         logger.error(
@@ -216,6 +243,57 @@ def run_batch_cli(
 
     logger.info("Batch complete: %s images written to %s", batch.total_images, output_dir)
     return 0
+
+
+def run_video_cli(
+    video_path: Path,
+    output_dir: Path,
+    *,
+    threshold: float = 0.25,
+    classify_species: bool = False,
+    fps: float | None = None,
+    max_frames: int = 300,
+    verbose: bool = False,
+) -> int:
+    """Analyze a video clip and write timeline JSON."""
+    _configure_logging(verbose)
+
+    if not video_path.is_file():
+        logger.error("Video file not found: %s", video_path)
+        return 1
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        from tqdm import tqdm
+
+        progress = tqdm(total=100, desc="Analyzing video")
+
+        def on_progress(current: int, total: int, message: str, fraction: float | None = None) -> None:
+            frac = fraction if fraction is not None else current / max(total, 1)
+            progress.n = int(frac * 100)
+            progress.set_description(message[:50])
+            progress.refresh()
+
+        result = analyze_video(
+            video_path,
+            fps=fps,
+            max_frames=max_frames,
+            threshold=threshold,
+            classify_species=classify_species,
+            progress_callback=on_progress,
+        )
+        progress.close()
+        timeline = export_video_timeline(result, output_dir)
+        append_audit_entry(
+            "video_complete",
+            {"source": str(video_path), "frames": result.total_frames, "interrupted": result.interrupted},
+        )
+        logger.info("Video analysis complete: %s frames → %s", result.total_frames, timeline)
+        return 0
+    except Exception as exc:
+        logger.error("Video analysis failed: %s", exc)
+        return 1
 
 
 def main() -> None:
@@ -248,7 +326,9 @@ def main() -> None:
             "-r",
             help="Include images in subfolders",
         ),
-        workers: int = typer.Option(1, "--workers", "-w"),
+        workers: int = typer.Option(1, "--workers", "-w", help="Parallel I/O workers (inference single-process)"),
+        chunk_size: int | None = typer.Option(None, "--chunk-size", help="Process in chunks; unload models between"),
+        torch_compile: bool = typer.Option(False, "--torch-compile", help="Enable torch.compile (opt-in)"),
         zip_limit: int = typer.Option(
             100,
             "--zip-limit",
@@ -264,8 +344,32 @@ def main() -> None:
             classify_species=classify_species,
             recursive=recursive,
             workers=workers,
+            chunk_size=chunk_size,
+            torch_compile=torch_compile,
             verbose=verbose,
             zip_limit=zip_limit,
+        )
+        raise typer.Exit(code=code)
+
+    @app.command("video")
+    def video_command(
+        video_path: Path = typer.Argument(..., help="Camera-trap video clip"),
+        output_dir: Path = typer.Option(..., "--output", "-o", help="Output directory"),
+        threshold: float = typer.Option(0.25, "--threshold", "-t"),
+        classify_species: bool = typer.Option(False, "--classify-species"),
+        fps: float | None = typer.Option(None, "--fps", help="Sample rate (frames per second)"),
+        max_frames: int = typer.Option(300, "--max-frames"),
+        verbose: bool = typer.Option(False, "--verbose", "-v"),
+    ) -> None:
+        """Extract frames from a video and run detection."""
+        code = run_video_cli(
+            video_path,
+            output_dir,
+            threshold=threshold,
+            classify_species=classify_species,
+            fps=fps,
+            max_frames=max_frames,
+            verbose=verbose,
         )
         raise typer.Exit(code=code)
 
@@ -312,25 +416,49 @@ def _main_argparse() -> None:
         default=True,
     )
     batch_parser.add_argument("-w", "--workers", type=int, default=1)
+    batch_parser.add_argument("--chunk-size", type=int, default=None)
+    batch_parser.add_argument("--torch-compile", action="store_true")
     batch_parser.add_argument("--zip-limit", type=int, default=100)
     batch_parser.add_argument("-v", "--verbose", action="store_true")
 
+    video_parser = sub.add_parser("video", help="Analyze a video clip")
+    video_parser.add_argument("video_path", type=Path)
+    video_parser.add_argument("-o", "--output", type=Path, required=True)
+    video_parser.add_argument("-t", "--threshold", type=float, default=0.25)
+    video_parser.add_argument("--classify-species", action="store_true")
+    video_parser.add_argument("--fps", type=float, default=None)
+    video_parser.add_argument("--max-frames", type=int, default=300)
+    video_parser.add_argument("-v", "--verbose", action="store_true")
+
     args = parser.parse_args()
-    if args.command != "batch":
-        parser.error(f"Unknown command: {args.command}")
-
-    sys.exit(
-        run_batch_cli(
-            args.input_dir,
-            args.output,
-            threshold=args.threshold,
-            classify_species=args.classify_species,
-            recursive=args.recursive,
-            workers=args.workers,
-            verbose=args.verbose,
-            zip_limit=args.zip_limit,
+    if args.command == "batch":
+        sys.exit(
+            run_batch_cli(
+                args.input_dir,
+                args.output,
+                threshold=args.threshold,
+                classify_species=args.classify_species,
+                recursive=args.recursive,
+                workers=args.workers,
+                chunk_size=args.chunk_size,
+                torch_compile=args.torch_compile,
+                verbose=args.verbose,
+                zip_limit=args.zip_limit,
+            )
         )
-    )
+    if args.command == "video":
+        sys.exit(
+            run_video_cli(
+                args.video_path,
+                args.output,
+                threshold=args.threshold,
+                classify_species=args.classify_species,
+                fps=args.fps,
+                max_frames=args.max_frames,
+                verbose=args.verbose,
+            )
+        )
+    parser.error(f"Unknown command: {args.command}")
 
 
-__all__ = ["main", "run_batch_cli"]
+__all__ = ["main", "run_batch_cli", "run_video_cli"]

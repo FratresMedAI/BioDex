@@ -1,5 +1,5 @@
 """
-MegaDetector v5a inference and BioDex analysis pipeline.
+MegaDetector v5a inference and BioDex analysis pipeline (facade).
 
 Note: This package is named ``core`` (not ``utils``) because MegaDetector's
 YOLOv5 backend imports ``utils.general`` — a top-level ``utils`` package
@@ -14,11 +14,16 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-import numpy as np
-import numpy.typing as npt
-from PIL import Image, ImageOps
+from PIL import Image
 
-from core.classifier import enrich_with_species
+from core.config import get_model_settings
+from core.models import base as _models_base
+from core.models.megadetector import (
+    build_detection_records,
+    prepare_camera_trap_image,
+)
+from core.models.registry import get_classifier as _registry_get_classifier
+from core.models.registry import get_detector as _registry_get_detector
 from core.types import (
     ANIMAL_CATEGORY_ID,
     CATEGORY_MAP,
@@ -31,7 +36,6 @@ from core.types import (
     AnalysisResult,
     DetectionRecord,
     format_species_display,
-    get_category_label,
     utc_now_iso,
 )
 
@@ -39,101 +43,28 @@ ProgressCallback = Callable[[str], None] | None
 
 logger = logging.getLogger(__name__)
 
-_detector = None
+# Backwards-compatible re-exports for tests and internal callers.
+_prepare_camera_trap_image = prepare_camera_trap_image
+_build_detection_records = build_detection_records
 
 
 def get_detector() -> Any:
     """Return a cached MegaDetector model instance (loads once per process)."""
-    global _detector
-    if _detector is None:
-        try:
-            from megadetector.detection import run_detector
-
-            logger.info("Loading MegaDetector model %s…", MODEL_ID)
-            _detector = run_detector.load_detector(MODEL_ID)
-            logger.info("MegaDetector ready.")
-        except Exception as exc:
-            logger.exception("MegaDetector load failed")
-            raise RuntimeError(
-                "Failed to load MegaDetector. If this is your first run, "
-                "model weights may still be downloading (~280 MB). "
-                f"Details: {exc}"
-            ) from exc
-    return _detector
+    adapter = _registry_get_detector()
+    if not adapter.is_loaded:
+        adapter.load()
+    return getattr(adapter, "_model", adapter)
 
 
-def _prepare_camera_trap_image(image: Image.Image) -> Image.Image:
-    """
-    Normalize a camera trap image for detection and display.
-
-    Fixes EXIF orientation (common on trail cameras), validates pixels,
-    and converts to RGB without downscaling.
-    """
-    if not isinstance(image, Image.Image):
-        raise ValueError("Expected a PIL Image for analysis.")
-
-    try:
-        image.load()
-    except Exception as exc:
-        raise ValueError("Could not read the uploaded image. It may be corrupt.") from exc
-
-    image = ImageOps.exif_transpose(image)
-    if image.mode != "RGB":
-        try:
-            image = image.convert("RGB")
-        except Exception as exc:
-            raise ValueError("Could not convert image to RGB.") from exc
-
-    width, height = image.size
-    if width <= 0 or height <= 0:
-        raise ValueError("Image has invalid dimensions (width and height must be > 0).")
-    return image
-
-
-def _pil_to_numpy(image: Image.Image) -> npt.NDArray[Any]:
-    """Convert PIL RGB image to numpy array expected by MegaDetector."""
-    return np.array(image)
-
-
-def _run_megadetector(image: Image.Image, threshold: float) -> list[dict[str, Any]]:
-    """
-    Run MegaDetector and return detections at or above ``threshold``.
-
-    MegaDetector receives ``detection_threshold`` and results are filtered again
-    so the UI threshold is applied consistently.
-    """
-    model = get_detector()
-    try:
-        raw = model.generate_detections_one_image(
-            _pil_to_numpy(image),
-            detection_threshold=threshold,
-        )
-    except Exception as exc:
-        logger.exception("MegaDetector inference failed")
-        raise RuntimeError(
-            "MegaDetector inference failed. Check model weights and image format. "
-            f"Details: {exc}"
-        ) from exc
-    all_detections: list[dict[str, Any]] = raw.get("detections", [])
-    return [d for d in all_detections if float(d.get("conf", 0.0)) >= threshold]
-
-
-def _build_detection_records(raw_detections: list[dict[str, Any]]) -> list[DetectionRecord]:
-    """Convert MegaDetector dicts into typed DetectionRecord objects."""
-    records: list[DetectionRecord] = []
-    for index, detection in enumerate(raw_detections, start=1):
-        category_id = str(detection.get("category", ""))
-        bbox = detection.get("bbox") or [0.0, 0.0, 0.0, 0.0]
-        records.append(
-            DetectionRecord(
-                detection_id=index,
-                category_id=category_id,
-                category=get_category_label(category_id),
-                confidence=float(detection.get("conf", 0.0)),
-                bbox=list(bbox),
-            )
-        )
-    return records
+def _run_megadetector(
+    image: Image.Image,
+    threshold: float,
+    *,
+    detector: _models_base.BaseDetector | None = None,
+) -> list[dict[str, Any]]:
+    """Run MegaDetector and return detections at or above ``threshold``."""
+    backend = detector or _registry_get_detector()
+    return backend.predict(image, threshold)
 
 
 def _build_summary(
@@ -196,6 +127,9 @@ def analyze_single_image(
     filename: str = "upload",
     species_min_confidence: float = DEFAULT_SPECIES_MIN_CONFIDENCE,
     progress_callback: ProgressCallback = None,
+    *,
+    detector: _models_base.BaseDetector | None = None,
+    classifier: _models_base.BaseClassifier | None = None,
 ) -> AnalysisResult:
     """
     Run the full BioDex analysis pipeline on a single image.
@@ -207,13 +141,19 @@ def analyze_single_image(
         filename: Source filename used in exports.
         species_min_confidence: Minimum species score before labeling as Uncertain.
         progress_callback: Optional ``(message)`` hook for UI progress updates.
+        detector: Optional detector backend (default: registry).
+        classifier: Optional classifier backend (default: registry).
 
     Returns:
         AnalysisResult with counts, detections, metadata, and summary text.
     """
-    image = _prepare_camera_trap_image(image)
+    image = prepare_camera_trap_image(image)
     width, height = image.size
     analyzed_at = utc_now_iso()
+    settings = get_model_settings()
+    backend = detector or _registry_get_detector()
+    model_id = getattr(backend, "model_id", MODEL_ID)
+
     logger.info(
         "Analyzing %s (%dx%d) threshold=%.2f species=%s",
         filename,
@@ -228,19 +168,21 @@ def analyze_single_image(
     if progress_callback:
         progress_callback("Loading MegaDetector and running detection…")
 
-    raw_detections = _run_megadetector(image, threshold)
-    detections = _build_detection_records(raw_detections)
+    raw_detections = _run_megadetector(image, threshold, detector=backend)
+    detections = backend.build_records(raw_detections)
 
     species_warning = ""
     if classify_species and detections:
         animal_count = sum(1 for d in detections if d.category_id == ANIMAL_CATEGORY_ID)
         if progress_callback and animal_count:
             progress_callback(f"Running SpeciesNet on {animal_count} animal crop(s)…")
-        detections, species_warnings = enrich_with_species(
+        cls_backend = classifier or _registry_get_classifier()
+        detections, species_warnings = cls_backend.enrich(
             image,
             detections,
             filename,
             species_min_confidence=species_min_confidence,
+            geofence_region=settings.geofence_region,
         )
         warnings.extend(species_warnings)
         species_warning = species_warnings[0] if species_warnings else ""
@@ -279,7 +221,7 @@ def analyze_single_image(
         analyzed_at=analyzed_at,
         warnings=warnings,
         species_warning=species_warning,
-        model_id=MODEL_ID,
+        model_id=model_id,
         inference_ms=round(inference_ms, 2),
         timestamp=analyzed_at,
     )
@@ -318,11 +260,17 @@ def warmup_models(*, species: bool = False) -> None:
         torch.set_num_threads(threads)
     except Exception:
         pass
-    get_detector()
+    adapter = _registry_get_detector()
+    adapter.load()
     if species:
-        from core.classifier import get_classifier
+        _registry_get_classifier().load()
 
-        get_classifier()
+
+def get_category_label(category_id: str) -> str:
+    """Map MegaDetector category ID to a readable label."""
+    from core.types import get_category_label as _label
+
+    return _label(category_id)
 
 
 __all__ = [
@@ -330,6 +278,9 @@ __all__ = [
     "CATEGORY_MAP",
     "MODEL_ID",
     "ProgressCallback",
+    "_build_detection_records",
+    "_prepare_camera_trap_image",
+    "_run_megadetector",
     "analyze_single_image",
     "get_category_label",
     "get_detector",

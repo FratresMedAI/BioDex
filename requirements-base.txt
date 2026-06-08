@@ -7,6 +7,11 @@ setuptools>=65.0,<81.0
 tqdm>=4.64
 torch>=2.0
 
+# Optional extras (install as needed):
+# pip install "biodex[video]"       — opencv-python-headless
+# pip install "biodex[analytics]"   — matplotlib, seaborn
+# pip install "biodex[edge]"        — onnxruntime
+
 # After protobuf==3.20.1 and megadetector>=10.0,<11.0:
 # pip install "speciesnet>=5.0,<6.0"
 

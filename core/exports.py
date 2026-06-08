@@ -185,7 +185,12 @@ def _detection_to_json_dict(detection: DetectionRecord) -> dict[str, Any]:
     }
 
 
-def _result_to_json_payload(result: AnalysisResult) -> dict[str, Any]:
+def _result_to_json_payload(
+    result: AnalysisResult,
+    *,
+    human_review: bool = False,
+    review_notes: str = "",
+) -> dict[str, Any]:
     return {
         "biodex_version": BIODEX_VERSION,
         "filename": result.filename,
@@ -201,6 +206,8 @@ def _result_to_json_payload(result: AnalysisResult) -> dict[str, Any]:
         "model_id": result.model_id,
         "inference_ms": result.inference_ms,
         "timestamp": result.timestamp,
+        "human_review": human_review,
+        "review_notes": review_notes,
         "counts": {
             "total": result.total,
             "animals": result.animal_count,
@@ -227,15 +234,23 @@ def export_json(result: AnalysisResult) -> str:
     return tmp.name
 
 
-def export_batch_json(batch: BatchResult) -> str:
+def export_batch_json(
+    batch: BatchResult,
+    *,
+    human_review: bool = False,
+    review_notes: str = "",
+) -> str:
     """Write batch analysis results to a temporary JSON file."""
     payload = {
         "biodex_version": BIODEX_VERSION,
         "total_images": batch.total_images,
         "processed_count": batch.processed_count,
         "failed_count": len(batch.failed),
+        "interrupted": batch.interrupted,
         "threshold": batch.threshold,
         "species_enabled": batch.species_enabled,
+        "human_review": human_review,
+        "review_notes": review_notes,
         "summary": {
             "blank_count": batch.blank_count,
             "total_detections": batch.total_detections,
@@ -245,7 +260,10 @@ def export_batch_json(batch: BatchResult) -> str:
             "species_counts": batch.species_counts,
         },
         "failed": [{"filename": name, "error": err} for name, err in batch.failed],
-        "results": [_result_to_json_payload(r) for r in batch.results],
+        "results": [
+            _result_to_json_payload(r, human_review=human_review, review_notes=review_notes)
+            for r in batch.results
+        ],
     }
 
     tmp = tempfile.NamedTemporaryFile(
@@ -357,6 +375,248 @@ def export_batch_annotated_zip(
     return tmp.name
 
 
+def export_wildlife_insights(batch: BatchResult, deployment_id: str = "biodex-local") -> str:
+    """Write Wildlife Insights-compatible CSV."""
+    rows: list[dict[str, Any]] = []
+    for result in batch.results:
+        exif_ts = result.timestamp or result.analyzed_at
+        if result.detections:
+            for detection in result.detections:
+                xmin, ymin, width, height = detection.bbox
+                rows.append(
+                    {
+                        "deploymentID": deployment_id,
+                        "filename": result.filename,
+                        "species": detection.species.label if detection.species else "",
+                        "confidence": detection.confidence,
+                        "bbox_x": xmin,
+                        "bbox_y": ymin,
+                        "bbox_w": width,
+                        "bbox_h": height,
+                        "timestamp": exif_ts,
+                        "category": detection.category,
+                    }
+                )
+        else:
+            rows.append(
+                {
+                    "deploymentID": deployment_id,
+                    "filename": result.filename,
+                    "species": "",
+                    "confidence": "",
+                    "bbox_x": "",
+                    "bbox_y": "",
+                    "bbox_w": "",
+                    "bbox_h": "",
+                    "timestamp": exif_ts,
+                    "category": "blank" if result.is_blank else "",
+                }
+            )
+
+    df = pd.DataFrame(rows)
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".csv",
+        prefix="biodex_wi_",
+        delete=False,
+        newline="",
+    )
+    df.to_csv(tmp.name, index=False)
+    tmp.close()
+    return tmp.name
+
+
+def export_inaturalist(batch: BatchResult) -> str:
+    """Write iNaturalist observation draft CSV (manual review required)."""
+    header = (
+        "# BioDex iNaturalist export - MANUAL REVIEW REQUIRED before upload\n"
+        "# Verify species labels and location before submitting to iNaturalist\n"
+    )
+    rows: list[dict[str, Any]] = []
+    for result in batch.results:
+        for detection in result.detections:
+            if detection.category_id != "1" or not detection.species:
+                continue
+            rows.append(
+                {
+                    "observation_date": result.timestamp or result.analyzed_at,
+                    "taxon_name": detection.species.label,
+                    "description": f"Camera trap detection (confidence {detection.confidence:.2f})",
+                    "filename": result.filename,
+                    "latitude": "",
+                    "longitude": "",
+                }
+            )
+
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=["observation_date", "taxon_name", "description", "filename", "latitude", "longitude"]
+    )
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".csv",
+        prefix="biodex_inat_",
+        delete=False,
+        newline="",
+    )
+    tmp.write(header)
+    df.to_csv(tmp, index=False)
+    tmp.close()
+    return tmp.name
+
+
+def export_timelapse_md(batch: BatchResult) -> str:
+    """Write MegaDetector native JSON array (timelapse-compatible)."""
+    images_payload: list[dict[str, Any]] = []
+    for result in batch.results:
+        detections_md = []
+        for detection in result.detections:
+            detections_md.append(
+                {
+                    "category": detection.category_id,
+                    "conf": detection.confidence,
+                    "bbox": detection.bbox,
+                }
+            )
+        images_payload.append({"file": result.filename, "detections": detections_md})
+
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".json",
+        prefix="biodex_timelapse_",
+        delete=False,
+        encoding="utf-8",
+    )
+    json.dump(images_payload, tmp, indent=2)
+    tmp.close()
+    return tmp.name
+
+
+def export_sqlite(batch: BatchResult, db_path: Path | str) -> str:
+    """Write batch results to SQLite with images, detections, and species tables."""
+    import sqlite3
+
+    path = Path(db_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path))
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS images (
+                id INTEGER PRIMARY KEY,
+                filename TEXT,
+                analyzed_at TEXT,
+                is_blank INTEGER,
+                animal_count INTEGER,
+                threshold REAL
+            );
+            CREATE TABLE IF NOT EXISTS detections (
+                id INTEGER PRIMARY KEY,
+                image_id INTEGER,
+                category TEXT,
+                confidence REAL,
+                xmin REAL, ymin REAL, width REAL, height REAL,
+                FOREIGN KEY (image_id) REFERENCES images(id)
+            );
+            CREATE TABLE IF NOT EXISTS species (
+                id INTEGER PRIMARY KEY,
+                detection_id INTEGER,
+                label TEXT,
+                confidence REAL,
+                tier TEXT,
+                FOREIGN KEY (detection_id) REFERENCES detections(id)
+            );
+            """
+        )
+        for result in batch.results:
+            cur = conn.execute(
+                "INSERT INTO images (filename, analyzed_at, is_blank, animal_count, threshold) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    result.filename,
+                    result.analyzed_at,
+                    int(result.is_blank),
+                    result.animal_count,
+                    result.threshold,
+                ),
+            )
+            image_id = cur.lastrowid
+            for detection in result.detections:
+                cur = conn.execute(
+                    "INSERT INTO detections (image_id, category, confidence, xmin, ymin, width, height) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        image_id,
+                        detection.category,
+                        detection.confidence,
+                        detection.bbox[0],
+                        detection.bbox[1],
+                        detection.bbox[2],
+                        detection.bbox[3],
+                    ),
+                )
+                det_id = cur.lastrowid
+                if detection.species:
+                    conn.execute(
+                        "INSERT INTO species (detection_id, label, confidence, tier) VALUES (?, ?, ?, ?)",
+                        (
+                            det_id,
+                            detection.species.label,
+                            detection.species.confidence,
+                            detection.species.confidence_tier,
+                        ),
+                    )
+        conn.commit()
+    finally:
+        conn.close()
+    return str(path)
+
+
+def _top_species_label(result: AnalysisResult) -> str:
+    best = ""
+    best_conf = -1.0
+    for detection in result.detections:
+        if detection.species and detection.species.confidence > best_conf:
+            best_conf = detection.species.confidence
+            best = detection.species.label
+    return best
+
+
+def export_ecosentinel(batch: BatchResult) -> str:
+    """Fratres EcoSentinel hook — versioned JSON schema stub for sensor fusion."""
+    payload = {
+        "schema_version": "ecosentinel/0.5-stub",
+        "source": "biodex",
+        "biodex_version": BIODEX_VERSION,
+        "total_images": batch.total_images,
+        "summary": {
+            "animals": batch.animal_count,
+            "species_counts": batch.species_counts,
+        },
+        "observations": [
+            {
+                "filename": r.filename,
+                "timestamp": r.timestamp or r.analyzed_at,
+                "detections": len(r.detections),
+                "top_species": _top_species_label(r),
+            }
+            for r in batch.results
+            if not r.error
+        ],
+        "fusion_ready": False,
+        "note": "EcoSentinel integration stub — full drone/sensor fusion in Fratres stack",
+    }
+    tmp = tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".json",
+        prefix="biodex_ecosentinel_",
+        delete=False,
+        encoding="utf-8",
+    )
+    json.dump(payload, tmp, indent=2)
+    tmp.close()
+    return tmp.name
+
+
 __all__ = [
     "CSV_COLUMNS",
     "batch_to_csv",
@@ -365,6 +625,11 @@ __all__ = [
     "export_batch_annotated_zip",
     "export_batch_json",
     "export_bundle",
+    "export_ecosentinel",
+    "export_inaturalist",
     "export_json",
+    "export_sqlite",
+    "export_timelapse_md",
+    "export_wildlife_insights",
     "save_annotated_image",
 ]

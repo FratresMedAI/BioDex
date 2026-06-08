@@ -46,11 +46,13 @@ def test_frozen_bundle_inserts_meipass_on_path(tmp_path: Path) -> None:
     try:
         sys.frozen = True  # type: ignore[attr-defined]
         sys._MEIPASS = str(bundle)  # type: ignore[attr-defined]
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("desktop.launcher.Path.home", return_value=tmp_path):
-                from desktop import launcher
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("desktop.launcher.Path.home", return_value=tmp_path),
+        ):
+            from desktop import launcher
 
-                launcher._configure_runtime()
+            launcher._configure_runtime()
         assert str(bundle) in sys.path
     finally:
         sys.path[:] = original_path

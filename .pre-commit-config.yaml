@@ -1,0 +1,17 @@
+# See https://pre-commit.com for more information
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^(core|ui|desktop|tests|app\.py)/
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-Pillow
+          - pandas-stubs
+        args: [core, app.py, ui]
+        pass_filenames: false
