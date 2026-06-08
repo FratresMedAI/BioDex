@@ -4,22 +4,22 @@ An honest look at where BioDex is headed.
 
 ---
 
-## v0.5 — Geofencing, exports, video foundations (complete)
+## v1.0 — Production baseline (complete)
 
-**Goal:** Pluggable models, conservation pipeline exports, and video prep for v0.6.
+**Goal:** Deliver a stable, local-first, conservation-grade baseline with strong QA and release readiness.
 
 - [x] Pluggable model registry (`core/models/`) with MDV5A + SpeciesNet adapters
 - [x] Batch chunking, cancel event, ETA progress, I/O workers
 - [x] Wildlife Insights, iNaturalist, timelapse, SQLite, EcoSentinel exports
 - [x] EXIF/GPS helpers and geofence config stub
 - [x] Analytics: diversity index, activity heatmap
-- [x] Video frame extraction and `biodex video` CLI
+- [x] Video frame extraction and `biodex video` CLI foundations
 - [x] Tabbed UI: Dashboard, Batch, Video, Analytics, Settings
 - [x] Dockerfile CPU/GPU, release workflow, pre-commit
 
 ---
 
-## v0.6 — Video and motion
+## v1.1 — Video and motion
 
 **Goal:** Full camera-trap video workflow.
 
@@ -30,13 +30,13 @@ An honest look at where BioDex is headed.
 
 ---
 
-## v0.7 — Acoustic monitoring (exploratory)
+## v1.2 — Acoustic monitoring (exploratory)
 
 - [ ] BirdNET / Perch integration if feasible locally
 
 ---
 
-## v0.8 — Local fine-tuning UI
+## v1.3 — Local fine-tuning UI
 
 - [ ] Upload labeled crops and fine-tune on local GPU
 

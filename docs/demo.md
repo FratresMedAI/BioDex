@@ -1,4 +1,4 @@
-# BioDex demo guide (v0.5)
+# BioDex demo guide (v1.0)
 
 ## Quick start
 

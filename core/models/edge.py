@@ -28,17 +28,17 @@ class ONNXDetectorAdapter:
                 "Install with: pip install 'biodex[edge]'"
             ) from exc
         raise NotImplementedError(
-            "ONNX detector adapter is a v0.5 stub. Use MDV5A (default) for production."
+            "ONNX detector adapter is a v1.0 stub. Use MDV5A (default) for production."
         )
 
     def unload(self) -> None:
         self._loaded = False
 
     def predict(self, image: Image.Image, threshold: float) -> list[dict[str, object]]:
-        raise NotImplementedError("ONNX detector not implemented in v0.5.")
+        raise NotImplementedError("ONNX detector not implemented in v1.0.")
 
     def build_records(self, raw_detections: list[dict[str, object]]) -> list[DetectionRecord]:
-        raise NotImplementedError("ONNX detector not implemented in v0.5.")
+        raise NotImplementedError("ONNX detector not implemented in v1.0.")
 
 
 class TensorRTDetectorAdapter:
@@ -55,7 +55,7 @@ class TensorRTDetectorAdapter:
 
     def load(self) -> None:
         raise NotImplementedError(
-            "TensorRT edge inference is planned for v0.6+. "
+            "TensorRT edge inference is planned for post-v1.0 releases. "
             "Use MDV5A (default) or install biodex[edge] for ONNX stubs."
         )
 
@@ -63,10 +63,10 @@ class TensorRTDetectorAdapter:
         self._loaded = False
 
     def predict(self, image: Image.Image, threshold: float) -> list[dict[str, object]]:
-        raise NotImplementedError("TensorRT detector not implemented in v0.5.")
+        raise NotImplementedError("TensorRT detector not implemented in v1.0.")
 
     def build_records(self, raw_detections: list[dict[str, object]]) -> list[DetectionRecord]:
-        raise NotImplementedError("TensorRT detector not implemented in v0.5.")
+        raise NotImplementedError("TensorRT detector not implemented in v1.0.")
 
 
 __all__ = ["ONNXDetectorAdapter", "TensorRTDetectorAdapter"]

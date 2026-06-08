@@ -1,4 +1,4 @@
-"""Tab builders for the BioDex v0.5 Gradio UI."""
+"""Tab builders for the BioDex v1.0 Gradio UI."""
 
 from __future__ import annotations
 

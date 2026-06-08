@@ -2,6 +2,24 @@
 
 All notable changes to BioDex are documented here.
 
+## [1.0.0] — 2026-06-08
+
+### Added
+
+- General-availability release line for BioDex with local-first camera-trap analysis workflows
+- Stable tabbed UI workflow (Dashboard, Batch, Video, Analytics, Settings) and export pipeline coverage
+- Production packaging path (CPU/GPU Dockerfiles, release workflow, pre-commit hooks)
+
+### Changed
+
+- Version bumped from `0.5.0` to `1.0.0` in runtime metadata and release documentation
+- Roadmap and README updated to reflect a v1 baseline and post-1.0 planning
+
+### Reliability
+
+- Full quality gates pass: pytest (`not slow`), ruff, mypy (`core`, `app.py`, `ui`), and `build_app()` smoke check
+- Default behavior remains backwards-compatible (`MDV5A` detector + optional SpeciesNet classification)
+
 ## [0.5.0] — 2025-06-08
 
 ### Added

@@ -4,7 +4,7 @@
 
 [![Python 3.10–3.12](https://img.shields.io/badge/python-3.10--3.12-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.5.0-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)](CHANGELOG.md)
 
 Built for conservation research, field review, and defensive wildlife monitoring (Fratres / EcoSentinel integration hooks).
 
@@ -34,7 +34,7 @@ First analysis downloads models once (~500 MB). After that, everything stays off
 
 ---
 
-## v0.5 highlights
+## v1.0 highlights
 
 - **Pluggable models** — registry architecture (`core/models/`) with MegaDetector + SpeciesNet adapters
 - **Batch performance** — chunking, cancel, ETA progress, optional `torch.compile`
@@ -42,6 +42,7 @@ First analysis downloads models once (~500 MB). After that, everything stays off
 - **Advanced exports** — Wildlife Insights, iNaturalist drafts, timelapse JSON, SQLite, EcoSentinel hook
 - **Tabbed UI** — Dashboard, Batch, Video, Analytics, Settings (dark mode)
 - **Docker** — CPU and GPU images for deployment
+- **Release maturity** — stable API surface, strict typing/linting, and CI-gated quality
 
 ---
 

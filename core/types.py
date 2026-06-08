@@ -1,5 +1,5 @@
 """
-Shared data types and geometry helpers for BioDex v0.5.
+Shared data types and geometry helpers for BioDex v1.0.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
-BIODEX_VERSION = "0.5.0"
+BIODEX_VERSION = "1.0.0"
 MODEL_ID = "MDV5A"
 
 # MegaDetector category IDs.

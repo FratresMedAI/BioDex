@@ -1,5 +1,5 @@
 """
-BioDex — Local AI for Wildlife Camera Traps (v0.5)
+BioDex — Local AI for Wildlife Camera Traps (v1.0)
 
 Gradio web UI with tabbed Dashboard, Batch, Video, Analytics, and Settings.
 All inference runs locally.
