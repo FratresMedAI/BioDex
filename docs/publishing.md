@@ -56,6 +56,22 @@ Create a GitHub Environment named `pypi` so deployments are gated/audited:
 1. Repo **Settings → Environments → New environment → `pypi`**.
 2. Optionally add required reviewers or a tag-pattern deployment branch rule (`v*`).
 
+## Enable the publish job
+
+The `publish` job is **gated** so release runs stay green before PyPI is wired up. It only runs
+when **both** are true:
+
+1. The push is a `v*` tag, and
+2. The repository variable `PYPI_PUBLISH` is set to `true`.
+
+Set the variable after registering the Trusted Publisher:
+
+- GitHub repo **Settings → Secrets and variables → Actions → Variables → New variable**
+  - **Name:** `PYPI_PUBLISH`  **Value:** `true`
+- …or via CLI: `gh variable set PYPI_PUBLISH --body true`
+
+Until then the job shows as **skipped** (grey), not failed (red).
+
 ## Re-run the publish after registering
 
 The workflow uses `skip-existing: true`, so it is safe to re-run.

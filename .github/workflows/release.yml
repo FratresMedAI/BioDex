@@ -56,10 +56,12 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    # Trusted Publishing must be configured on PyPI for this to succeed:
-    # https://pypi.org/manage/project/biodex/settings/publishing/
-    # Until then this job is allowed to fail without blocking the release.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Trusted Publishing must be configured on PyPI before enabling this job:
+    #   https://pypi.org/manage/project/biodex/settings/publishing/  (see docs/publishing.md)
+    # This job stays SKIPPED (not failed) until you set the repository variable
+    #   PYPI_PUBLISH = true   (Settings -> Secrets and variables -> Actions -> Variables)
+    # so release runs are green out of the box.
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PYPI_PUBLISH == 'true'
     environment: pypi
     permissions:
       id-token: write
