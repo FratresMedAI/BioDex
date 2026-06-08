@@ -96,7 +96,7 @@ path = "core/types.py"
 pattern = "BIODEX_VERSION = \"(?P<version>[^\"]+)\""
 
 [tool.hatch.build.targets.wheel]
-packages = ["core", "ui", "desktop"]
+packages = ["biodex", "core", "ui", "desktop"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "app.py" = "app.py"
@@ -125,7 +125,7 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 no_implicit_optional = true
 strict_equality = true
-files = ["core", "app.py", "ui", "tests"]
+files = ["biodex", "core", "app.py", "ui", "tests"]
 
 [[tool.mypy.overrides]]
 module = [

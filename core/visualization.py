@@ -109,8 +109,8 @@ def _measure_label_block(
     total_height = 0
     for index, line in enumerate(lines):
         bbox = draw.textbbox((0, 0), line, font=font)
-        line_w = bbox[2] - bbox[0]
-        line_h = bbox[3] - bbox[1]
+        line_w = int(bbox[2] - bbox[0])
+        line_h = int(bbox[3] - bbox[1])
         max_width = max(max_width, line_w)
         total_height += line_h
         if index < len(lines) - 1:
@@ -354,7 +354,7 @@ def draw_detections(
                 font,
             )
             line_bbox = measure_draw.textbbox((0, 0), line, font=font)
-            text_y += (line_bbox[3] - line_bbox[1]) + LABEL_GAP
+            text_y += int(line_bbox[3] - line_bbox[1]) + LABEL_GAP
 
     if show_legend:
         _draw_legend(label_overlay, legend_font, title_font, width, height)
