@@ -4,7 +4,7 @@
 
 [![Python 3.10–3.12](https://img.shields.io/badge/python-3.10--3.12-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.1-brightgreen.svg)](CHANGELOG.md)
 [![CI](https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml/badge.svg)](https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml)
 [![Release](https://github.com/FratresMedAI/BioDex/actions/workflows/release.yml/badge.svg)](https://github.com/FratresMedAI/BioDex/actions/workflows/release.yml)
 
@@ -42,9 +42,24 @@ First analysis downloads models once (~500 MB). After that, everything stays off
 - **Batch performance** — chunking, cancel, ETA progress, optional `torch.compile`
 - **Video foundations** — frame sampling + timeline export (`biodex video`, requires `[video]` extra)
 - **Advanced exports** — Wildlife Insights, iNaturalist drafts, timelapse JSON, SQLite, EcoSentinel hook
-- **Tabbed UI** — Dashboard, Batch, Video, Analytics, Settings (dark mode)
+- **Tabbed UI** — Dashboard, Batch, Video, Analytics, Settings
+- **Optional AI review (BYOK)** — per-frame LLM notes after batch runs (see below)
 - **Docker** — CPU and GPU images for deployment
 - **Release maturity** — stable API surface, strict typing/linting, and CI-gated quality
+
+---
+
+## Optional AI review (BYOK)
+
+Core detection runs **fully offline** on your machine. AI review is an **optional** power feature:
+
+1. Open **Use via API** in the footer.
+2. Choose a provider, paste your API key, pick a model (or type a custom model ID), then **Save**.
+3. After a batch run, select a frame and click **AI review (LLM)** for a field note: scene summary, species second opinion, and data-quality flags.
+
+**Privacy:** API keys are stored locally in `~/.cache/biodex/settings.json` and sent only to the provider you choose — never to BioDex servers. See [SECURITY.md](SECURITY.md).
+
+**Scope in v1.0.1:** batch frame review only. Single-image spot check, video key frames, and batch-level summaries are planned for v1.1. Not every model slug in the dropdown is guaranteed to work with every provider — use a custom model ID if needed.
 
 ---
 

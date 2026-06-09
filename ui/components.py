@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import urllib.request
 from pathlib import Path
@@ -22,6 +23,17 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = ROOT / "examples"
 MANIFEST_PATH = EXAMPLES_DIR / "manifest.json"
+FAVICON_PATH = Path(__file__).resolve().parent / "favicon.png"
+
+
+def _favicon_data_uri() -> str:
+    if not FAVICON_PATH.is_file():
+        return ""
+    try:
+        encoded = base64.b64encode(FAVICON_PATH.read_bytes()).decode("ascii")
+    except OSError:
+        return ""
+    return f"data:image/png;base64,{encoded}"
 
 _MEGA_BASE = "https://raw.githubusercontent.com/agentmorris/MegaDetector/main/images"
 
@@ -143,14 +155,22 @@ def demo_tab_intro_html() -> str:
 
 def header_html() -> str:
     """Minimal field-review header."""
+    icon_uri = _favicon_data_uri()
+    icon_markup = (
+        f'<img src="{icon_uri}" alt="" />'
+        if icon_uri
+        else ""
+    )
     return f"""
     <div class="field-header">
       <div class="field-header-main">
-        <span class="field-brand">BioDex</span>
-        <span class="field-title">Field Review</span>
+        <span class="field-title-main">
+          <span class="field-title-icon" aria-hidden="true">{icon_markup}</span>
+          BioDex Field Review
+        </span>
         <span class="field-version">v{BIODEX_VERSION}</span>
       </div>
-      <p class="field-tagline">Trail camera triage · local only · no cloud upload</p>
+      <div class="field-header-rule" aria-hidden="true"></div>
     </div>
     """
 
@@ -159,8 +179,62 @@ def welcome_html() -> str:
     return ""
 
 
+def footer_tagline_html() -> str:
+    return """
+    <div class="field-footer-tagline">
+        <span class="field-footer-badge">
+          <span class="field-footer-badge-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h3l2-3h6l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"
+              stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="13" r="3" stroke="currentColor" stroke-width="1.5"/></svg>
+          </span>
+          Trail camera triage
+        </span>
+        <span class="field-footer-badge">
+          <span class="field-footer-badge-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 4 7v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V7l-8-4Z"
+              stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m9 12 2 2 4-4"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </span>
+          Local only
+        </span>
+        <span class="field-footer-badge">
+          <span class="field-footer-badge-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M18 10h-1.26A8 8 0 1 0 9 18"
+              stroke="currentColor" stroke-width="1.5"/><path d="M16 16 22 22M22 16l-6 6"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </span>
+          No cloud upload
+        </span>
+    </div>
+    """
+
+
+def footer_chips_html() -> str:
+    return """
+    <div class="field-footer-chips">
+        <a class="field-footer-chip" href="https://gradio.app" target="_blank"
+          rel="noopener noreferrer">
+          <span class="field-footer-chip-icon field-footer-chip-icon-gradio" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M7 16 12 19l5-3M7 10l5 3 5-3M7 4l5 3 5-3"
+              stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </span>
+          Built with Gradio
+        </a>
+        <button type="button" class="field-footer-chip"
+          onclick="document.querySelector('#settings-tab-button, button[aria-label=\\'Settings\\']')?.click()">
+          <span class="field-footer-chip-icon field-footer-chip-icon-settings" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3"
+              stroke="currentColor" stroke-width="1.5"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </span>
+          Settings
+        </button>
+    </div>
+    """
+
+
 def footer_html() -> str:
-    return '<div class="field-footer">Local inference only · no cloud upload</div>'
+    return f'<div class="field-footer">{footer_tagline_html()}{footer_chips_html()}</div>'
 
 
 def _species_status_html(level: str, message: str) -> str:

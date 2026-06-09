@@ -14,6 +14,10 @@ DEFAULTS: dict[str, Any] = {
     "dark_mode": False,
     "geofence_region": "",
     "detector_id": "MDV5A",
+    "api_key": "",
+    "llm_provider": "openai",
+    "llm_model": "gpt-5.5",
+    "llm_base_url": "http://localhost:11434/v1",
 }
 
 

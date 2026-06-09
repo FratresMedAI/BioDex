@@ -16,22 +16,28 @@ import gradio as gr
 from core.config import get_settings
 from core.detector import warmup_models
 from core.types import BIODEX_VERSION
-from ui.components import footer_html, header_html
+from ui.api_menu import build_api_menu
+from ui.components import footer_chips_html, footer_tagline_html, header_html
 from ui.handlers import (
+    ai_review_frame,
     analyze_batch,
     analyze_spot_check,
     analyze_video_ui,
     apply_settings,
     clear_batch_review,
+    clear_llm_settings,
     compute_analytics,
     load_lila_cache,
+    on_llm_provider_change,
     refresh_species_status,
     request_cancel,
     run_quick_demo,
+    save_llm_settings,
     select_batch_frame,
+    test_llm_settings,
+    toggle_api_menu,
 )
-from ui.settings_store import load_settings
-from ui.styles import APP_THEME, CUSTOM_CSS, dark_mode_css
+from ui.styles import APP_THEME, CUSTOM_CSS, tree_background_css
 from ui.tabs import (
     build_analytics_tab,
     build_batch_tab,
@@ -42,31 +48,86 @@ from ui.tabs import (
 
 LILA_CACHE_DIR = Path.home() / ".cache" / "biodex" / "channel-islands-demo"
 FAVICON_PATH = Path(__file__).resolve().parent / "ui" / "favicon.png"
+TREE_BACKGROUND_PATH = Path(__file__).resolve().parent / "ui" / "tree_of_life_background.jpg"
 logger = logging.getLogger(__name__)
 
 
 def build_app() -> gr.Blocks:
     """Construct the tabbed BioDex Gradio application."""
     settings = get_settings()
-    stored = load_settings()
-    page_class = "biodex-page biodex-dark" if stored.get("dark_mode") else "biodex-page"
+    page_classes = ["biodex-page"]
 
     with gr.Blocks(title=f"BioDex v{BIODEX_VERSION}") as demo:
         review_state = gr.State([])
         batch_paths_state = gr.State([])
         last_batch = gr.State(None)
 
-        with gr.Column(elem_classes=[page_class, "field-device"]) as page_column:
+        with gr.Column(elem_classes=[*page_classes, "field-device"]):
             gr.HTML(header_html())
 
-            with gr.Tabs():
+            with gr.Tabs(elem_classes=["biodex-tabs"]):
                 build_dashboard_tab(last_batch)
                 batch_w = build_batch_tab(settings, review_state, batch_paths_state, last_batch)
                 video_w = build_video_tab()
                 analytics_w = build_analytics_tab(last_batch)
-                settings_w = build_settings_tab(page_column)
+                settings_w = build_settings_tab()
 
-            gr.HTML(footer_html())
+            with gr.Column(elem_classes=["field-footer-section"]):
+                gr.HTML(footer_tagline_html())
+                api_open = gr.State(False)
+                api_w = build_api_menu()
+                with gr.Row(elem_classes=["field-footer-actions"]):
+                    api_toggle_btn = gr.Button("Use via API", elem_classes=["field-api-toggle"])
+                    gr.HTML(footer_chips_html())
+
+        api_toggle_btn.click(
+            fn=toggle_api_menu,
+            inputs=[api_open],
+            outputs=[
+                api_open,
+                api_w["api_menu"],
+                api_w["llm_provider"],
+                api_w["llm_api_key"],
+                api_w["llm_model"],
+                api_w["llm_base_url"],
+                api_w["llm_status"],
+            ],
+        )
+        api_w["llm_provider"].change(
+            fn=on_llm_provider_change,
+            inputs=[api_w["llm_provider"]],
+            outputs=[api_w["llm_model"], api_w["llm_base_url"], api_w["llm_status"]],
+        )
+        api_w["llm_save_btn"].click(
+            fn=save_llm_settings,
+            inputs=[
+                api_w["llm_provider"],
+                api_w["llm_api_key"],
+                api_w["llm_model"],
+                api_w["llm_base_url"],
+            ],
+            outputs=[api_w["llm_status"]],
+        )
+        api_w["llm_test_btn"].click(
+            fn=test_llm_settings,
+            inputs=[
+                api_w["llm_provider"],
+                api_w["llm_api_key"],
+                api_w["llm_model"],
+                api_w["llm_base_url"],
+            ],
+            outputs=[api_w["llm_status"]],
+        )
+        api_w["llm_clear_btn"].click(
+            fn=clear_llm_settings,
+            outputs=[
+                api_w["llm_provider"],
+                api_w["llm_api_key"],
+                api_w["llm_model"],
+                api_w["llm_base_url"],
+                api_w["llm_status"],
+            ],
+        )
 
         # Batch tab wiring
         batch_w["classify_species"].change(
@@ -97,6 +158,7 @@ def build_app() -> gr.Blocks:
                 batch_w["review_annotated"],
                 batch_w["frame_label"],
                 batch_w["frame_detections"],
+                batch_w["review_panel"],
                 last_batch,
             ],
             show_progress="minimal",
@@ -125,10 +187,16 @@ def build_app() -> gr.Blocks:
                 batch_w["review_annotated"],
                 batch_w["frame_label"],
                 batch_w["frame_detections"],
+                batch_w["review_panel"],
                 last_batch,
             ],
             show_progress="minimal",
         )
+        for _reset_btn in (batch_w["batch_btn"], batch_w["quick_demo_btn"], batch_w["clear_btn"]):
+            _reset_btn.click(
+                fn=lambda: (None, ""),
+                outputs=[batch_w["selected_frame_index"], batch_w["ai_review_output"]],
+            )
         batch_w["cancel_btn"].click(fn=request_cancel, outputs=[batch_w["batch_status"]])
         batch_w["batch_table"].select(
             fn=select_batch_frame,
@@ -138,7 +206,15 @@ def build_app() -> gr.Blocks:
                 batch_w["review_annotated"],
                 batch_w["frame_label"],
                 batch_w["frame_detections"],
+                batch_w["selected_frame_index"],
+                batch_w["ai_review_output"],
             ],
+        )
+        batch_w["ai_review_btn"].click(
+            fn=ai_review_frame,
+            inputs=[batch_w["review_state"], batch_w["selected_frame_index"]],
+            outputs=[batch_w["ai_review_output"]],
+            show_progress="minimal",
         )
         batch_w["clear_btn"].click(
             fn=clear_batch_review,
@@ -158,6 +234,7 @@ def build_app() -> gr.Blocks:
                 batch_w["review_annotated"],
                 batch_w["frame_label"],
                 batch_w["frame_detections"],
+                batch_w["review_panel"],
                 batch_w["batch_paths_state"],
                 last_batch,
             ],
@@ -189,6 +266,7 @@ def build_app() -> gr.Blocks:
                 video_w["video_status"],
                 video_w["video_timeline_btn"],
                 video_w["video_gallery"],
+                video_w["video_results_panel"],
             ],
             show_progress="minimal",
         )
@@ -202,6 +280,7 @@ def build_app() -> gr.Blocks:
                 analytics_w["diversity_html"],
                 analytics_w["heatmap_image"],
                 analytics_w["species_chart"],
+                analytics_w["analytics_results_panel"],
             ],
         )
 
@@ -210,14 +289,11 @@ def build_app() -> gr.Blocks:
             fn=apply_settings,
             inputs=[
                 settings_w["settings_threshold"],
-                settings_w["settings_species"],
-                settings_w["settings_dark"],
                 settings_w["settings_geofence"],
             ],
             outputs=[
                 batch_w["threshold"],
-                batch_w["classify_species"],
-                page_column,
+                settings_w["settings_status"],
             ],
         )
 
@@ -242,8 +318,7 @@ def launch_app() -> None:
     settings = get_settings()
     host = settings.host
     port = settings.port
-    stored = load_settings()
-    css = CUSTOM_CSS + (dark_mode_css() if stored.get("dark_mode") else "")
+    css = CUSTOM_CSS + tree_background_css()
     print(f"BioDex v{BIODEX_VERSION} at http://{host}:{port}")
     print("Open the Batch tab to process a folder, or try Quick demo.")
     _start_model_warmup(species=True)
@@ -258,7 +333,7 @@ def launch_app() -> None:
         "css": css,
         "auth": settings.gradio_auth,
         "show_error": True,
-        "allowed_paths": [str(biodex_cache), str(LILA_CACHE_DIR)],
+        "allowed_paths": [str(biodex_cache), str(LILA_CACHE_DIR), str(TREE_BACKGROUND_PATH.parent)],
     }
     if FAVICON_PATH.is_file():
         launch_kwargs["favicon_path"] = str(FAVICON_PATH)

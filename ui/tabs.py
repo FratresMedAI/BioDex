@@ -16,12 +16,11 @@ from ui.handlers import EMPTY_FIELD_SUMMARY, HOW_IT_WORKS, dashboard_stats
 from ui.settings_store import load_settings
 
 
-def build_dashboard_tab(last_batch: gr.State) -> tuple[gr.HTML, gr.Markdown]:
+def build_dashboard_tab(last_batch: gr.State) -> None:
     with gr.Tab("Dashboard", id="dashboard"):
         gr.Markdown(HOW_IT_WORKS)
         stats = gr.HTML(dashboard_stats(None))
         last_batch.change(fn=dashboard_stats, inputs=[last_batch], outputs=[stats])
-    return stats, gr.Markdown("")  # placeholder
 
 
 def build_batch_tab(
@@ -74,29 +73,41 @@ def build_batch_tab(
                 label="Confidence threshold",
             )
 
-        widgets["frame_label"] = gr.Markdown("", elem_classes=["field-frame-title"])
-        with gr.Row(elem_classes=["field-image-panel", "field-viewer-row"]):
-            widgets["review_original"] = gr.Image(
-                label="Original", type="pil", interactive=False, height=420,
-            )
-            widgets["review_annotated"] = gr.Image(
-                label="Annotated", type="pil", interactive=False, height=420,
-            )
+        with gr.Column(visible=False, elem_classes=["field-review-panel"]) as review_panel:
+            widgets["frame_label"] = gr.Markdown("", elem_classes=["field-frame-title"])
+            with gr.Row(elem_classes=["field-image-panel", "field-viewer-row"]):
+                widgets["review_original"] = gr.Image(
+                    label="Original", type="pil", interactive=False, height=420,
+                )
+                widgets["review_annotated"] = gr.Image(
+                    label="Annotated", type="pil", interactive=False, height=420,
+                )
 
-        widgets["batch_table"] = gr.Dataframe(
-            headers=FIELD_TABLE_COLUMNS,
-            label="Frames — click a row to review",
-            interactive=False,
-            wrap=True,
-            elem_classes=["field-table-wrap"],
-        )
-        widgets["frame_detections"] = gr.Dataframe(
-            headers=FIELD_DETECTION_COLUMNS,
-            label="Detections in selected frame",
-            interactive=False,
-            wrap=True,
-            elem_classes=["field-detections-wrap"],
-        )
+            widgets["batch_table"] = gr.Dataframe(
+                headers=FIELD_TABLE_COLUMNS,
+                label="Frames — click a row to review",
+                interactive=False,
+                wrap=True,
+                elem_classes=["field-table-wrap"],
+            )
+            widgets["frame_detections"] = gr.Dataframe(
+                headers=FIELD_DETECTION_COLUMNS,
+                label="Detections in selected frame",
+                interactive=False,
+                wrap=True,
+                elem_classes=["field-detections-wrap"],
+            )
+            with gr.Row(elem_classes=["field-ai-review-bar"]):
+                widgets["ai_review_btn"] = gr.Button(
+                    "AI review (LLM)", variant="secondary", scale=0
+                )
+                gr.HTML(
+                    '<span class="field-ai-review-hint">Uses your BYOK key · '
+                    "scene summary, species second opinion & flags</span>"
+                )
+            widgets["ai_review_output"] = gr.Markdown("", elem_classes=["field-ai-review"])
+        widgets["review_panel"] = review_panel
+        widgets["selected_frame_index"] = gr.State(None)
 
         with gr.Accordion("Export results", open=False):
             with gr.Row(elem_classes=["field-export-row"]):
@@ -136,8 +147,10 @@ def build_video_tab() -> dict[str, Any]:
         widgets["video_analyze_btn"] = gr.Button("Analyze video", variant="primary")
         widgets["video_cancel_btn"] = gr.Button("Cancel", variant="stop")
         widgets["video_status"] = gr.Markdown("")
-        widgets["video_timeline_btn"] = gr.DownloadButton("Timeline JSON", interactive=False)
-        widgets["video_gallery"] = gr.Gallery(label="Key frames", columns=4, height=240)
+        with gr.Column(visible=False, elem_classes=["field-video-results"]) as video_results_panel:
+            widgets["video_timeline_btn"] = gr.DownloadButton("Timeline JSON", interactive=False)
+            widgets["video_gallery"] = gr.Gallery(label="Key frames", columns=4, height=240)
+        widgets["video_results_panel"] = video_results_panel
     return widgets
 
 
@@ -146,21 +159,21 @@ def build_analytics_tab(last_batch: gr.State) -> dict[str, Any]:
     with gr.Tab("Analytics", id="analytics"):
         gr.Markdown("Species diversity and activity patterns from your last batch run.")
         widgets["analytics_refresh"] = gr.Button("Refresh from last batch")
-        widgets["diversity_html"] = gr.HTML("Run a batch first.")
-        widgets["heatmap_image"] = gr.Image(label="Activity heatmap", interactive=False, height=280)
-        widgets["species_chart"] = gr.HTML("")
+        widgets["diversity_html"] = gr.HTML('<p class="biodex-analytics-empty">Run a batch first.</p>')
+        with gr.Column(visible=False, elem_classes=["field-analytics-results"]) as analytics_results_panel:
+            widgets["heatmap_image"] = gr.HTML("")
+            widgets["species_chart"] = gr.HTML("")
+        widgets["analytics_results_panel"] = analytics_results_panel
         widgets["last_batch"] = last_batch
     return widgets
 
 
-def build_settings_tab(page_column: gr.Column) -> dict[str, Any]:
+def build_settings_tab() -> dict[str, Any]:
     widgets: dict[str, Any] = {}
     stored = load_settings()
     with gr.Tab("Settings", id="settings"):
-        gr.Markdown("Model and display preferences (saved locally).")
+        gr.Markdown("Model preferences (saved locally).")
         widgets["settings_threshold"] = gr.Slider(0.05, 0.95, value=stored["threshold"], label="Default threshold")
-        widgets["settings_species"] = gr.Checkbox(value=stored["classify_species"], label="Species classification default")
-        widgets["settings_dark"] = gr.Checkbox(value=stored["dark_mode"], label="Dark mode")
         widgets["settings_geofence"] = gr.Dropdown(
             choices=["", "US", "AU", "EU", "SA", "AF"],
             value=stored.get("geofence_region", ""),
@@ -173,7 +186,7 @@ def build_settings_tab(page_column: gr.Column) -> dict[str, Any]:
             info="Additional models coming soon",
         )
         widgets["settings_save"] = gr.Button("Save settings", variant="primary")
-        widgets["page_column"] = page_column
+        widgets["settings_status"] = gr.Markdown("")
     return widgets
 
 

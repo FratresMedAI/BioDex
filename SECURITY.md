@@ -22,3 +22,10 @@ Include:
 - BioDex is local-first and sends no telemetry by default.
 - Audit logging is opt-in (`BIODEX_AUDIT_LOG=1`).
 - Users are responsible for protecting local datasets, model weights, and export artifacts.
+
+## Optional LLM (BYOK)
+
+- AI review is optional and uses **your** API key (Bring Your Own Key).
+- Keys are stored locally in `~/.cache/biodex/settings.json` as plain text.
+- Keys are sent only to the LLM provider you choose (OpenAI, Anthropic, etc.) — never to BioDex or Fratres servers.
+- Protect that file like any local credential; use **Clear** in the footer menu to remove saved keys.

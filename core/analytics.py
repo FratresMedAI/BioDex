@@ -80,15 +80,21 @@ def activity_heatmap(
     values = [buckets.get(label, 0) for label in labels]
     xlabel = "Hour of day" if group_by == "hour" else "Day of week (Mon=0)"
 
-    fig, ax = plt.subplots(figsize=(8, 3))
-    sns.barplot(x=labels, y=values, ax=ax, color="#2d6a4f")
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel("Animal detections")
-    ax.set_title("BioDex activity heatmap")
+    fig, ax = plt.subplots(figsize=(9, 3.2), facecolor="#F5EDE3")
+    ax.set_facecolor("#F5EDE3")
+    sns.barplot(x=labels, y=values, ax=ax, color="#2d6a4f", edgecolor="#1b4332", linewidth=0.6)
+    ax.set_xlabel(xlabel, color="#2C3328", fontsize=11, fontweight="bold")
+    ax.set_ylabel("Animal detections", color="#2C3328", fontsize=11, fontweight="bold")
+    ax.set_title("BioDex activity heatmap", color="#2C3328", fontsize=12, fontweight="bold", pad=10)
+    ax.tick_params(axis="both", colors="#2C3328", labelsize=9)
+    ax.grid(axis="y", color="#C9BFB0", linewidth=0.8, alpha=0.9)
+    for spine in ax.spines.values():
+        spine.set_color("#2C3328")
+        spine.set_linewidth(1.0)
     fig.tight_layout()
 
     tmp = Path(tempfile.mkstemp(suffix=".png", prefix="biodex_heatmap_")[1])
-    fig.savefig(tmp, dpi=120)
+    fig.savefig(tmp, dpi=140, facecolor=fig.get_facecolor(), edgecolor="none")
     plt.close(fig)
     return tmp
 

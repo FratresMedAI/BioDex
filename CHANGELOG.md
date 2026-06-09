@@ -2,6 +2,31 @@
 
 All notable changes to BioDex are documented here.
 
+## [1.0.1] — 2026-06-09
+
+### Added
+
+- **Optional AI review (BYOK)** — footer **Use via API** menu with provider/model/key storage; **AI review (LLM)** on batch frame review (scene summary, species second opinion, data-quality flags)
+- LLM modules: `ui/llm_settings.py`, `ui/llm_review.py`, `ui/api_menu.py`
+- Brand assets under `docs/` and savanna background for the field-review UI
+
+### Changed
+
+- UI polish: compact footer/API menu, analytics contrast, hidden broken dataframe toolbar buttons
+- README and SECURITY updated for current feature set (removed outdated dark-mode references; documented BYOK key storage)
+- Model catalog labels note custom model IDs are supported
+
+### Fixed
+
+- OpenAI GPT-5 / o-series test and generation requests use `max_completion_tokens` where required
+- Ruff lint (`page_column` unused binding in `app.py`)
+
+### Known limitations
+
+- LLM review is optional BYOK and limited to batch frame review in this release
+- Model dropdown slugs are provider-specific; not all entries are validated against live APIs
+- API keys stored as plain text in `~/.cache/biodex/settings.json` (documented in SECURITY.md)
+
 ## [1.0.0] — 2026-06-08
 
 ### Added

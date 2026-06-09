@@ -29,7 +29,7 @@ from core.exports import (
 )
 from core.quick_demo import QUICK_DEMO_COUNT, ensure_quick_demo_paths
 from core.types import AnalysisResult, BatchResult
-from core.video import analyze_video, export_video_timeline
+from core.video import analyze_video, export_video_timeline, extract_frames
 from core.visualization import draw_detections
 from PIL import Image
 
@@ -45,7 +45,16 @@ from ui.components import (
     load_sample_image,
     probe_speciesnet,
 )
-from ui.settings_store import save_settings
+from ui.llm_review import review_frame
+from ui.llm_settings import (
+    DEFAULT_LOCAL_BASE_URL,
+    DEFAULT_PROVIDER,
+    default_model,
+    flatten_models,
+    key_required,
+    test_connection,
+)
+from ui.settings_store import load_settings, save_settings
 
 BATCH_ANNOTATED_ZIP_LIMIT = 100
 LILA_CACHE_DIR = Path.home() / ".cache" / "biodex" / "channel-islands-demo"
@@ -216,6 +225,10 @@ def _resolve_batch_paths(
     )
 
 
+def _review_panel_update(*, visible: bool) -> Any:
+    return gr.update(visible=visible)
+
+
 def _empty_batch_response(message: str) -> tuple[Any, ...]:
     empty_table = pd.DataFrame(columns=FIELD_TABLE_COLUMNS)
     empty_det = pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
@@ -235,6 +248,7 @@ def _empty_batch_response(message: str) -> tuple[Any, ...]:
         None,
         "",
         empty_det,
+        _review_panel_update(visible=False),
         None,
     )
 
@@ -327,6 +341,7 @@ def analyze_batch(
             ann,
             label,
             det_df,
+            _review_panel_update(visible=True),
             batch,
         )
 
@@ -350,6 +365,7 @@ def analyze_batch(
                 ann,
                 label,
                 det_df,
+                _review_panel_update(visible=True),
                 batch,
             )
         else:
@@ -410,12 +426,36 @@ def select_batch_frame(
     review_state: list[dict[str, Any]] | None,
     evt: gr.SelectData,
 ) -> tuple[Any, ...]:
+    empty = (None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS), None, "")
     if not review_state or evt.index is None:
-        return None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
+        return empty
     row = evt.index[0]
     if row < 0 or row >= len(review_state):
-        return None, None, "", pd.DataFrame(columns=FIELD_DETECTION_COLUMNS)
-    return _frame_view(review_state[row])
+        return empty
+    return (*_frame_view(review_state[row]), row, "")
+
+
+def ai_review_frame(
+    review_state: list[dict[str, Any]] | None,
+    selected_index: int | None,
+    progress: Any = gr.Progress(),  # noqa: B008
+) -> str:
+    if not review_state:
+        return "Run a batch and select a frame first."
+    idx = selected_index
+    if idx is None or idx < 0 or idx >= len(review_state):
+        first = _first_review_frame(review_state)
+        idx = review_state.index(first) if first in review_state else 0
+    frame = review_state[idx]
+    result = cast(AnalysisResult, frame["result"])
+    progress(0.2, desc="Sending frame to your LLM…")
+    try:
+        original, _annotated = _load_frame_images(frame)
+    except Exception:
+        original = None
+    note = review_frame(result, original)
+    progress(1.0, desc="AI review complete")
+    return note
 
 
 def clear_batch_review() -> tuple[Any, ...]:
@@ -437,6 +477,7 @@ def clear_batch_review() -> tuple[Any, ...]:
         None,
         "",
         empty_det,
+        _review_panel_update(visible=False),
         [],
         None,
     )
@@ -521,53 +562,164 @@ def analyze_video_ui(
         )
         if result.interrupted:
             summary += " · **cancelled**"
-        return summary, str(timeline), None
+        sampled = extract_frames(path, fps=fps if fps > 0 else None, max_frames=int(max_frames))
+        by_index = {index: image for index, (_, image) in enumerate(sampled)}
+        gallery = [
+            draw_detections(by_index[idx], frame_result.detections)
+            for idx, frame_result in result.key_frames
+            if idx in by_index
+        ]
+        return (
+            summary,
+            _enabled_download(str(timeline)),
+            gallery,
+            _review_panel_update(visible=True),
+        )
     except Exception as exc:
         raise gr.Error(str(exc)) from exc
 
 
-def compute_analytics(batch_state: BatchResult | None) -> tuple[str, Any, str]:
+def compute_analytics(batch_state: BatchResult | None) -> tuple[str, str, str, Any]:
     if batch_state is None or not batch_state.results:
-        return "Run a batch first.", None, ""
+        return (
+            '<p class="biodex-analytics-empty">Run a batch first.</p>',
+            "",
+            "",
+            _review_panel_update(visible=False),
+        )
     diversity = compute_diversity_index(batch_state.species_counts)
     div_html = (
-        f"**Shannon:** {diversity['shannon']} · **Simpson:** {diversity['simpson']} · "
-        f"**Richness:** {int(diversity['richness'])}"
+        '<div class="biodex-diversity-stats">'
+        f'<span><strong>Shannon</strong> {diversity["shannon"]}</span>'
+        f'<span><strong>Simpson</strong> {diversity["simpson"]}</span>'
+        f'<span><strong>Richness</strong> {int(diversity["richness"])}</span>'
+        "</div>"
     )
     try:
         heatmap_path = activity_heatmap(batch_state)
-        return div_html, str(heatmap_path), _species_chart_html(batch_state)
+        heatmap_html = _heatmap_html(heatmap_path)
     except RuntimeError:
-        return div_html, None, _species_chart_html(batch_state)
+        heatmap_html = '<p class="biodex-analytics-empty">Install analytics extras: pip install biodex[analytics]</p>'
+    return (
+        div_html,
+        heatmap_html,
+        _species_chart_html(batch_state),
+        _review_panel_update(visible=True),
+    )
+
+
+def _heatmap_html(path: Path) -> str:
+    import base64
+
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return (
+        '<div class="biodex-heatmap-wrap">'
+        f'<img class="biodex-heatmap-img" src="data:image/png;base64,{encoded}" '
+        'alt="Activity heatmap by hour of day"/>'
+        "</div>"
+    )
 
 
 def _species_chart_html(batch: BatchResult) -> str:
     if not batch.species_counts:
-        return "<p>No species data yet.</p>"
+        return '<p class="biodex-analytics-empty">No species data yet.</p>'
     rows = "".join(
         f"<tr><td>{name}</td><td>{count}</td></tr>"
         for name, count in list(batch.species_counts.items())[:15]
     )
-    return f'<table class="biodex-species-table"><tr><th>Species</th><th>Count</th></tr>{rows}</table>'
-
-
-def apply_settings(
-    threshold: float,
-    classify_species: bool,
-    dark_mode: bool,
-    geofence: str,
-) -> tuple[Any, ...]:
-    save_settings(
-        threshold=threshold,
-        classify_species=classify_species,
-        dark_mode=dark_mode,
-        geofence_region=geofence,
+    return (
+        '<div class="biodex-species-card">'
+        '<div class="biodex-species-card-title">Species counts</div>'
+        f'<table class="biodex-species-table"><thead><tr><th>Species</th><th>Count</th></tr></thead>'
+        f"<tbody>{rows}</tbody></table></div>"
     )
-    css_class = "biodex-page biodex-dark" if dark_mode else "biodex-page"
+
+
+def apply_settings(threshold: float, geofence: str) -> tuple[Any, ...]:
+    save_settings(threshold=threshold, geofence_region=geofence)
     return (
         gr.update(value=threshold),
-        gr.update(value=classify_species),
-        gr.update(elem_classes=[css_class, "field-device"]),
+        "**Settings saved.**",
+    )
+
+
+def on_llm_provider_change(provider: str) -> tuple[Any, Any, Any]:
+    provider = provider or DEFAULT_PROVIDER
+    model = default_model(provider)
+    return (
+        gr.update(choices=flatten_models(provider), value=model),
+        gr.update(visible=provider == "local"),
+        gr.update(value=""),
+    )
+
+
+def save_llm_settings(provider: str, api_key: str, model: str, base_url: str) -> str:
+    provider = provider or DEFAULT_PROVIDER
+    model = model.strip()
+    if key_required(provider) and not api_key.strip():
+        return "Enter an API key."
+    if not model:
+        return "Enter a model name."
+    save_settings(
+        api_key=api_key.strip(),
+        llm_provider=provider,
+        llm_model=model,
+        llm_base_url=base_url.strip() or DEFAULT_LOCAL_BASE_URL,
+    )
+    return "**Settings saved locally.**"
+
+
+def clear_llm_settings() -> tuple[Any, ...]:
+    save_settings(
+        api_key="",
+        llm_provider=DEFAULT_PROVIDER,
+        llm_model=default_model(DEFAULT_PROVIDER),
+        llm_base_url=DEFAULT_LOCAL_BASE_URL,
+    )
+    return (
+        gr.update(value=DEFAULT_PROVIDER),
+        gr.update(value=""),
+        gr.update(choices=flatten_models(DEFAULT_PROVIDER), value=default_model(DEFAULT_PROVIDER)),
+        gr.update(value=DEFAULT_LOCAL_BASE_URL, visible=False),
+        "",
+    )
+
+
+def test_llm_settings(provider: str, api_key: str, model: str, base_url: str) -> str:
+    result = test_connection(provider, api_key, model, base_url)
+    if result == "Connected.":
+        return f"**{result}**"
+    return result
+
+
+def toggle_api_menu(is_open: bool) -> tuple[bool, Any, Any, Any, Any, Any, Any]:
+    new_open = not is_open
+    if not new_open:
+        return (
+            new_open,
+            gr.update(visible=False),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(value=""),
+        )
+    stored = load_settings()
+    provider = stored.get("llm_provider", DEFAULT_PROVIDER)
+    return (
+        new_open,
+        gr.update(visible=True),
+        gr.update(value=provider),
+        gr.update(value=stored.get("api_key", "")),
+        gr.update(
+            choices=flatten_models(provider),
+            value=stored.get("llm_model") or default_model(provider),
+        ),
+        gr.update(
+            value=stored.get("llm_base_url", DEFAULT_LOCAL_BASE_URL),
+            visible=provider == "local",
+        ),
+        gr.update(value=""),
     )
 
 
@@ -583,11 +735,17 @@ def dashboard_stats(last_batch: BatchResult | None) -> str:
 
 __all__ = [
     "HOW_IT_WORKS",
+    "ai_review_frame",
     "analyze_batch",
     "analyze_image",
     "analyze_spot_check",
     "analyze_video_ui",
     "apply_settings",
+    "clear_llm_settings",
+    "on_llm_provider_change",
+    "save_llm_settings",
+    "test_llm_settings",
+    "toggle_api_menu",
     "clear_batch_review",
     "compute_analytics",
     "dashboard_stats",
