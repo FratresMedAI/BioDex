@@ -248,7 +248,7 @@ def _empty_batch_response(message: str) -> tuple[Any, ...]:
         None,
         "",
         empty_det,
-        _review_panel_update(visible=False),
+        _review_panel_update(visible=True),
         None,
     )
 
@@ -477,7 +477,7 @@ def clear_batch_review() -> tuple[Any, ...]:
         None,
         "",
         empty_det,
-        _review_panel_update(visible=False),
+        _review_panel_update(visible=True),
         [],
         None,
     )

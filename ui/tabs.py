@@ -58,29 +58,19 @@ def build_batch_tab(
                 elem_classes=["field-species-status"],
             )
 
-        with gr.Accordion("Folder upload & threshold", open=False):
-            widgets["batch_files"] = gr.File(
-                label="Camera-trap folder",
-                file_count="directory",
-                file_types=["image"],
-                type="filepath",
+        with gr.Column(visible=True, elem_classes=["field-review-panel"]) as review_panel:
+            widgets["frame_label"] = gr.Markdown(
+                "*Run **Quick demo** or **Process Folder** to review frames here.*",
+                elem_classes=["field-frame-title"],
             )
-            widgets["threshold"] = gr.Slider(
-                minimum=0.05,
-                maximum=0.95,
-                value=load_settings().get("threshold", settings.default_threshold),
-                step=0.05,
-                label="Confidence threshold",
-            )
-
-        with gr.Column(visible=False, elem_classes=["field-review-panel"]) as review_panel:
-            widgets["frame_label"] = gr.Markdown("", elem_classes=["field-frame-title"])
             with gr.Row(elem_classes=["field-image-panel", "field-viewer-row"]):
                 widgets["review_original"] = gr.Image(
                     label="Original", type="pil", interactive=False, height=420,
+                    buttons=["download"], elem_classes=["field-viewer-img"],
                 )
                 widgets["review_annotated"] = gr.Image(
                     label="Annotated", type="pil", interactive=False, height=420,
+                    buttons=["download"], elem_classes=["field-viewer-img"],
                 )
 
             widgets["batch_table"] = gr.Dataframe(
@@ -109,6 +99,21 @@ def build_batch_tab(
         widgets["review_panel"] = review_panel
         widgets["selected_frame_index"] = gr.State(None)
 
+        with gr.Accordion("Folder upload & threshold", open=False):
+            widgets["batch_files"] = gr.File(
+                label="Camera-trap folder",
+                file_count="directory",
+                file_types=["image"],
+                type="filepath",
+            )
+            widgets["threshold"] = gr.Slider(
+                minimum=0.05,
+                maximum=0.95,
+                value=load_settings().get("threshold", settings.default_threshold),
+                step=0.05,
+                label="Confidence threshold",
+            )
+
         with gr.Accordion("Export results", open=False):
             with gr.Row(elem_classes=["field-export-row"]):
                 widgets["batch_csv_btn"] = gr.DownloadButton("Master CSV", interactive=False)
@@ -123,8 +128,8 @@ def build_batch_tab(
             widgets["input_image"] = gr.Image(label="Upload one image", type="pil", height=240)
             widgets["analyze_one_btn"] = gr.Button("Analyze", variant="secondary")
             with gr.Row():
-                widgets["spot_original"] = gr.Image(label="Original", type="pil", interactive=False, height=280)
-                widgets["spot_annotated"] = gr.Image(label="Annotated", type="pil", interactive=False, height=280)
+                widgets["spot_original"] = gr.Image(label="Original", type="pil", interactive=False, height=280, buttons=["download"], elem_classes=["field-viewer-img"])
+                widgets["spot_annotated"] = gr.Image(label="Annotated", type="pil", interactive=False, height=280, buttons=["download"], elem_classes=["field-viewer-img"])
             widgets["spot_stats"] = gr.HTML("")
             widgets["spot_table"] = gr.Dataframe(headers=RESULTS_COLUMNS, interactive=False, wrap=True)
 
@@ -157,7 +162,10 @@ def build_video_tab() -> dict[str, Any]:
 def build_analytics_tab(last_batch: gr.State) -> dict[str, Any]:
     widgets: dict[str, Any] = {}
     with gr.Tab("Analytics", id="analytics"):
-        gr.Markdown("Species diversity and activity patterns from your last batch run.")
+        gr.Markdown(
+            "Species diversity and activity patterns from your last batch run.",
+            elem_classes=["field-analytics-intro"],
+        )
         widgets["analytics_refresh"] = gr.Button("Refresh from last batch")
         widgets["diversity_html"] = gr.HTML('<p class="biodex-analytics-empty">Run a batch first.</p>')
         with gr.Column(visible=False, elem_classes=["field-analytics-results"]) as analytics_results_panel:

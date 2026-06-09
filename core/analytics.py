@@ -56,6 +56,9 @@ def activity_heatmap(
     Returns path to a temporary PNG file.
     """
     _require_analytics()
+    import matplotlib
+
+    matplotlib.use("Agg", force=True)
     import matplotlib.pyplot as plt
     import seaborn as sns
 

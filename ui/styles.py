@@ -5,17 +5,18 @@ from pathlib import Path
 
 import gradio as gr
 
-# Nature-inspired palette — warm sand & tan (mirrored in CSS :root)
-_BD_CREAM = "#E8DFD0"
-_BD_SURFACE = "#F0E8DC"
-_BD_SAGE = "#E4DDD0"
-_BD_SAND = "#F5EDE3"
-_BD_BORDER = "#C9BFB0"
-_BD_MOSS = "#4A7C59"
-_BD_MOSS_HOVER = "#3D6849"
-_BD_EARTH = "#8B7355"
-_BD_TEXT = "#2C3328"
-_BD_TEXT_MUTED = "#5C6658"
+# Warm, earthy dark palette — forest greens + amber/terracotta glass over the savanna.
+_BD_CREAM = "#17150f"  # app base (warm near-black behind glass)
+_BD_SURFACE = "#262019"  # raised warm surface
+_BD_SAGE = "#2c2820"  # table odd / hover
+_BD_SAND = "#231e17"  # input / card fill
+_BD_BORDER = "#48402f"  # warm subtle border
+_BD_MOSS = "#86c193"  # forest sage green (primary)
+_BD_MOSS_HOVER = "#99d0a5"
+_BD_EARTH = "#e0a95e"  # warm amber/gold accent
+_BD_TEXT = "#f2ede2"  # warm off-white
+_BD_TEXT_MUTED = "#b6a98f"  # warm taupe
+_BD_ON_PRIMARY = "#12200f"  # text on green buttons
 
 APP_THEME = (
     gr.themes.Soft(
@@ -48,24 +49,24 @@ APP_THEME = (
         button_primary_background_fill_dark=_BD_MOSS,
         button_primary_background_fill_hover=_BD_MOSS_HOVER,
         button_primary_background_fill_hover_dark=_BD_MOSS_HOVER,
-        button_primary_text_color=_BD_SAND,
-        button_primary_text_color_dark=_BD_SAND,
-        button_secondary_background_fill=_BD_SAND,
-        button_secondary_background_fill_dark=_BD_SAND,
+        button_primary_text_color=_BD_ON_PRIMARY,
+        button_primary_text_color_dark=_BD_ON_PRIMARY,
+        button_secondary_background_fill=_BD_SURFACE,
+        button_secondary_background_fill_dark=_BD_SURFACE,
         button_secondary_background_fill_hover=_BD_SAGE,
         button_secondary_background_fill_hover_dark=_BD_SAGE,
-        button_secondary_text_color=_BD_MOSS,
-        button_secondary_text_color_dark=_BD_MOSS,
-        button_secondary_border_color=_BD_TEXT,
-        button_secondary_border_color_dark=_BD_TEXT,
+        button_secondary_text_color=_BD_TEXT,
+        button_secondary_text_color_dark=_BD_TEXT,
+        button_secondary_border_color=_BD_BORDER,
+        button_secondary_border_color_dark=_BD_BORDER,
         input_background_fill=_BD_SAND,
         input_background_fill_dark=_BD_SAND,
-        input_border_color=_BD_TEXT,
-        input_border_color_dark=_BD_TEXT,
+        input_border_color=_BD_BORDER,
+        input_border_color_dark=_BD_BORDER,
         slider_color=_BD_MOSS,
         slider_color_dark=_BD_MOSS,
-        checkbox_background_color=_BD_CREAM,
-        checkbox_background_color_dark=_BD_CREAM,
+        checkbox_background_color=_BD_SAND,
+        checkbox_background_color_dark=_BD_SAND,
         checkbox_label_background_fill="transparent",
         checkbox_label_background_fill_dark="transparent",
         checkbox_label_background_fill_selected="transparent",
@@ -81,32 +82,38 @@ APP_THEME = (
 
 CUSTOM_CSS = """
 :root {
-    --bd-cream: #E8DFD0;
-    --bd-surface: #F0E8DC;
-    --bd-sage: #E4DDD0;
-    --bd-sage-deep: #D8CFC0;
-    --bd-sand: #F5EDE3;
-    --bd-tan: #E2D8C8;
-    --bd-border: #C9BFB0;
-    --bd-moss: #4A7C59;
-    --bd-moss-hover: #3D6849;
-    --bd-earth: #8B7355;
-    --bd-text: #2C3328;
-    --bd-line: #2C3328;
-    --bd-text-muted: #5C6658;
-    --bd-amber: #B8860B;
-    --bd-terracotta: #C4705A;
-    --bd-radius-sm: 10px;
+    --bd-cream: #17150f;
+    --bd-surface: rgba(54, 44, 31, 0.5);
+    --bd-sage: rgba(60, 52, 36, 0.46);
+    --bd-sage-deep: rgba(38, 32, 22, 0.9);
+    --bd-sand: rgba(45, 37, 26, 0.58);
+    --bd-tan: rgba(66, 56, 40, 0.5);
+    --bd-border: rgba(224, 198, 138, 0.18);
+    --bd-border-strong: rgba(224, 198, 138, 0.3);
+    --bd-moss: #86c193;
+    --bd-moss-hover: #99d0a5;
+    --bd-earth: #e0a95e;
+    --bd-text: #f2ede2;
+    --bd-line: rgba(224, 198, 138, 0.18);
+    --bd-text-muted: #b6a98f;
+    --bd-amber: #e7b85c;
+    --bd-terracotta: #e0916a;
+    --bd-radius-sm: 12px;
+    --bd-glass-shadow: 0 24px 70px rgba(8, 6, 2, 0.5);
 }
 
 /* Page shell */
 .gradio-container,
 .dark .gradio-container {
-    color-scheme: light !important;
+    color-scheme: dark !important;
     background: var(--bd-cream) !important;
     max-width: 960px !important;
     margin: 0 auto !important;
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif !important;
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif !important;
+    font-size: 15.5px !important;
+    line-height: 1.6 !important;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     position: relative;
     isolation: isolate;
 }
@@ -168,16 +175,27 @@ CUSTOM_CSS = """
     inset: 0;
     z-index: -3;
     pointer-events: none;
-    background: radial-gradient(circle at 20% 20%, #2b3a34 0%, #1d2322 55%, #111827 100%);
+    background: radial-gradient(circle at 20% 15%, #3a3326 0%, #241d14 55%, #100d08 100%);
 }
 
-/* Keep content readable over the background image. */
+/* No outer box — the full savanna background shows through. */
 .biodex-page {
-    background: rgba(247, 245, 239, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.55);
-    border-radius: 16px;
-    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.35);
-    padding: 1rem;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 1rem 1.25rem 1.4rem;
+    color: var(--bd-text);
+}
+/* Floating text (not inside a glass box) stays readable over the photo. */
+.biodex-page,
+.biodex-page .prose,
+.biodex-page .prose p,
+.biodex-page .markdown p,
+.biodex-page h1,
+.biodex-page h2,
+.biodex-page h3,
+.biodex-tabs button {
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65), 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 /* ── Header (single soft card) ── */
@@ -185,14 +203,15 @@ CUSTOM_CSS = """
     text-align: center;
     margin-bottom: 0.25rem;
     padding: 1.5rem 1rem 1.15rem;
-    background: linear-gradient(180deg, var(--bd-sage) 0%, var(--bd-cream) 85%);
+    background: linear-gradient(180deg, rgba(60, 52, 36, 0.32) 0%, transparent 90%);
     border-radius: var(--bd-radius-sm);
 }
 .biodex-header h1 {
     margin: 0 0 0.25rem 0;
     font-family: Georgia, "Times New Roman", serif;
     font-weight: 700;
-    font-size: 1.85rem;
+    font-size: 2.05rem;
+    letter-spacing: 0.01em;
     color: var(--bd-text);
 }
 .biodex-header .biodex-title-accent {
@@ -238,10 +257,10 @@ CUSTOM_CSS = """
 .biodex-welcome h3 {
     margin: 0 0 0.6rem 0;
     color: var(--bd-moss);
-    font-size: 0.82rem;
+    font-size: 0.9rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
 }
 .biodex-welcome-steps {
     display: grid;
@@ -256,8 +275,8 @@ CUSTOM_CSS = """
 }
 .biodex-welcome-step {
     color: var(--bd-text-muted);
-    font-size: 0.88rem;
-    line-height: 1.45;
+    font-size: 0.95rem;
+    line-height: 1.55;
     padding: 0;
 }
 .biodex-welcome-step-num {
@@ -278,7 +297,8 @@ CUSTOM_CSS = """
 .biodex-section-title p {
     font-weight: 700 !important;
     color: var(--bd-text) !important;
-    font-size: 1.05rem !important;
+    font-size: 1.18rem !important;
+    letter-spacing: 0.01em !important;
     margin: 0 0 1rem 0 !important;
 }
 .biodex-settings-label,
@@ -359,23 +379,30 @@ CUSTOM_CSS = """
     border-bottom: 2px solid transparent !important;
     border-radius: 0 !important;
     color: var(--bd-text-muted) !important;
-    font-weight: 500 !important;
-    padding: 0.55rem 1rem !important;
+    font-weight: 600 !important;
+    font-size: 0.98rem !important;
+    letter-spacing: 0.01em !important;
+    padding: 0.7rem 1.15rem !important;
     box-shadow: none !important;
+    transition: color 0.18s ease, border-color 0.18s ease !important;
+}
+.biodex-tabs button:hover,
+.biodex-tabs .tab-nav button:hover {
+    color: var(--bd-text) !important;
 }
 .biodex-tabs button.selected,
 .biodex-tabs .tab-nav button.selected {
     color: var(--bd-moss) !important;
     font-weight: 700 !important;
     border-bottom: 2px solid var(--bd-moss) !important;
-    background: linear-gradient(180deg, rgba(74, 124, 89, 0.08) 0%, transparent 100%) !important;
+    background: linear-gradient(180deg, rgba(134, 193, 147, 0.12) 0%, transparent 100%) !important;
 }
 
 /* Markdown / prose — readable on warm field palette */
 .biodex-page .prose,
 .biodex-page .prose p,
 .biodex-page .markdown p {
-    color: var(--bd-text-muted) !important;
+    color: #e9e2d4 !important;
 }
 .biodex-page .prose code,
 .biodex-page .markdown code,
@@ -423,23 +450,27 @@ CUSTOM_CSS = """
     .biodex-stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
 .biodex-stat {
-    background: var(--bd-sand);
-    border: 1px solid var(--bd-line);
+    background: var(--bd-surface);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--bd-border);
     border-radius: var(--bd-radius-sm);
-    padding: 0.65rem 0.5rem;
+    padding: 0.85rem 0.5rem;
     text-align: center;
+    box-shadow: inset 0 1px 0 rgba(255, 240, 214, 0.05);
 }
 .biodex-stat-value {
-    font-size: 1.35rem;
-    font-weight: 700;
+    font-size: 1.7rem;
+    font-weight: 800;
     line-height: 1.1;
+    font-variant-numeric: tabular-nums;
 }
 .biodex-stat-label {
     font-size: 0.72rem;
     color: var(--bd-text-muted);
-    margin-top: 0.2rem;
+    margin-top: 0.3rem;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.06em;
 }
 .biodex-stat-total .biodex-stat-value { color: var(--bd-text); }
 .biodex-stat-animal .biodex-stat-value { color: var(--bd-moss); }
@@ -458,8 +489,8 @@ CUSTOM_CSS = """
     border-left: 3px solid var(--bd-amber);
     padding: 0.5rem 0 0.5rem 0.85rem;
     margin: 0.4rem 0;
-    color: #6B5A3E;
-    font-size: 0.9rem;
+    color: var(--bd-amber);
+    font-size: 0.92rem;
 }
 
 /* ── Export row ── */
@@ -539,7 +570,6 @@ CUSTOM_CSS = """
 }
 .gradio-container .accordion {
     border: none !important;
-    border-top: 1px solid var(--bd-line) !important;
     border-radius: 0 !important;
     background: transparent !important;
     margin-top: 0.5rem !important;
@@ -626,13 +656,74 @@ CUSTOM_CSS = """
     opacity: 0.85;
 }
 
+/* Batch review — solid glass panel (no backdrop blur — keeps images/tables sharp) */
+.field-review-panel {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.85rem !important;
+    margin: 0.75rem 0 1rem !important;
+    padding: 1.1rem 1.25rem !important;
+    background: linear-gradient(180deg, #3a3226 0%, #2a2318 100%) !important;
+    border: 1px solid var(--bd-border-strong) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 12px 36px rgba(8, 6, 2, 0.45), inset 0 1px 0 rgba(255, 240, 214, 0.06) !important;
+}
+.field-review-panel .block,
+.field-review-panel .form {
+    background: transparent !important;
+}
+.field-review-panel .label-wrap span,
+.field-review-panel .field-frame-title,
+.field-review-panel .field-frame-title p {
+    color: #f2ede2 !important;
+    font-size: 0.92rem !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
+}
+.field-review-panel .field-table-wrap .dataframe-wrap,
+.field-review-panel .field-detections-wrap .dataframe-wrap {
+    background: rgba(20, 16, 11, 0.88) !important;
+    border: 1px solid var(--bd-border-strong) !important;
+}
+.field-review-panel .field-table-wrap table,
+.field-review-panel .field-detections-wrap table {
+    color: #f2ede2 !important;
+    font-size: 0.9rem !important;
+}
+.field-review-panel .field-table-wrap th,
+.field-review-panel .field-detections-wrap th {
+    background: rgba(38, 32, 22, 0.95) !important;
+    color: var(--bd-earth) !important;
+}
+.field-review-panel .field-table-wrap td,
+.field-review-panel .field-detections-wrap td {
+    background: rgba(28, 23, 16, 0.75) !important;
+    color: #f2ede2 !important;
+}
+.field-review-panel .field-image-panel .image-container,
+.field-review-panel .field-image-panel .image-frame,
+.field-review-panel .image-container,
+.field-review-panel .image-frame {
+    background: #0a0908 !important;
+    border: 1px solid var(--bd-border-strong) !important;
+    border-radius: 10px !important;
+    min-height: 280px !important;
+    max-height: 480px !important;
+}
+/* Keep image action icons (fullscreen/share) from breaking the glass panel layout */
+.field-review-panel .image-container .icon-buttons,
+.field-image-panel .image-container .icon-buttons {
+    background: rgba(10, 9, 8, 0.55) !important;
+    border-radius: 8px !important;
+}
+
 /* Sticky aggregate stats — always visible while scrolling */
 .field-stats-strip {
     position: sticky;
     top: 0;
     z-index: 40;
-    background: var(--bd-cream);
-    padding: 0.35rem 0;
+    background: transparent;
+    padding: 0.45rem 0;
     margin: 0.5rem 0 0.25rem;
 }
 .field-summary {
@@ -640,14 +731,14 @@ CUSTOM_CSS = """
     flex-wrap: wrap;
     align-items: flex-end;
     gap: 0.65rem 2rem;
-    padding: 1rem 1.25rem;
-    background: linear-gradient(180deg, #E8E2D6 0%, var(--bd-sand) 100%);
-    border: 2px solid var(--bd-line);
-    border-radius: 6px;
-    box-shadow: 0 1px 0 rgba(44, 51, 40, 0.06);
+    padding: 1.1rem 1.4rem;
+    background: linear-gradient(180deg, #3a3226 0%, #2a2318 100%);
+    border: 1px solid var(--bd-border-strong);
+    border-radius: 14px;
+    box-shadow: 0 8px 26px rgba(8, 6, 2, 0.35), inset 0 1px 0 rgba(255, 240, 214, 0.05);
 }
 .field-summary-active {
-    border-color: var(--bd-earth);
+    border-color: rgba(224, 169, 94, 0.45);
 }
 .field-summary-empty {
     color: var(--bd-text-muted);
@@ -663,24 +754,25 @@ CUSTOM_CSS = """
     min-width: 5rem;
 }
 .field-stat-primary .field-stat-val {
-    font-size: 1.85rem;
+    font-size: 2.25rem;
 }
 .field-stat-val {
-    font-size: 1.55rem;
+    font-size: 1.85rem;
     font-weight: 800;
     line-height: 1;
     color: var(--bd-text);
     font-variant-numeric: tabular-nums;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
 }
 .field-stat-animal .field-stat-val {
     color: var(--bd-moss);
 }
 .field-stat-lbl {
-    font-size: 0.65rem;
+    font-size: 0.68rem;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     color: var(--bd-text-muted);
-    margin-top: 0.25rem;
+    margin-top: 0.3rem;
     font-weight: 600;
 }
 .field-stat-species {
@@ -728,24 +820,24 @@ CUSTOM_CSS = """
     color: var(--bd-text);
 }
 .field-species-ok {
-    background: #e8f0ea;
-    border-color: var(--bd-moss);
+    background: rgba(134, 193, 147, 0.14);
+    border-color: rgba(134, 193, 147, 0.5);
 }
 .field-species-ok .field-species-pill-label {
     color: var(--bd-moss);
     font-weight: 600;
 }
 .field-species-loading {
-    background: #f5f0e4;
-    border-color: var(--bd-earth);
+    background: rgba(224, 169, 94, 0.12);
+    border-color: rgba(224, 169, 94, 0.45);
 }
 .field-species-warn {
-    background: #faf4ec;
-    border-color: var(--bd-amber);
+    background: rgba(231, 184, 92, 0.12);
+    border-color: rgba(231, 184, 92, 0.45);
 }
 .field-species-error {
-    background: #faf0ee;
-    border-color: var(--bd-terracotta);
+    background: rgba(224, 145, 106, 0.14);
+    border-color: rgba(224, 145, 106, 0.5);
 }
 .field-species-off {
     background: var(--bd-sand);
@@ -905,17 +997,18 @@ CUSTOM_CSS = """
     display: none !important;
 }
 
-/* Analytics — high-contrast charts and tables */
+/* Analytics — solid panels, no backdrop blur (blur was muddying charts on Windows) */
 .biodex-diversity-stats {
     display: flex;
     flex-wrap: wrap;
     gap: 0.65rem 1.25rem;
     margin: 0.35rem 0 0.85rem;
-    padding: 0.75rem 1rem;
-    background: var(--bd-sand);
-    border: 2px solid var(--bd-line);
-    border-radius: 6px;
-    color: var(--bd-text);
+    padding: 0.85rem 1.1rem;
+    background: #2a2318 !important;
+    border: 1px solid var(--bd-border-strong);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(8, 6, 2, 0.4);
+    color: #f2ede2;
     font-size: 0.92rem;
     font-weight: 600;
 }
@@ -925,26 +1018,54 @@ CUSTOM_CSS = """
     margin-right: 0.25rem;
 }
 .biodex-analytics-empty {
-    color: var(--bd-text) !important;
+    color: #f2ede2 !important;
     font-size: 0.9rem !important;
     font-weight: 600 !important;
     margin: 0.35rem 0 !important;
+    padding: 0.65rem 1rem !important;
+    background: #2a2318 !important;
+    border: 1px solid var(--bd-border-strong) !important;
+    border-radius: 10px !important;
+}
+.field-analytics-intro p {
+    color: #f2ede2 !important;
+    font-size: 0.92rem !important;
+    font-weight: 500 !important;
+    margin: 0.25rem 0 0.75rem !important;
+    padding: 0.55rem 0.9rem !important;
+    background: #2a2318 !important;
+    border: 1px solid var(--bd-border-strong) !important;
+    border-radius: 10px !important;
 }
 .field-analytics-results {
     margin-top: 0.5rem;
-    padding: 0.85rem;
-    background: var(--bd-sand) !important;
-    border: 2px solid var(--bd-line) !important;
-    border-radius: 8px !important;
-    box-shadow: 0 1px 0 rgba(44, 51, 40, 0.06);
+    padding: 1.1rem 1.25rem !important;
+    background: #2a2318 !important;
+    border: 1px solid var(--bd-border-strong) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 12px 36px rgba(8, 6, 2, 0.45), inset 0 1px 0 rgba(255, 240, 214, 0.06) !important;
+}
+.field-analytics-results .block,
+.field-analytics-results .form,
+.field-analytics-results .html-container {
+    background: transparent !important;
+}
+/* Stop Gradio's "processing" shimmer from blurring analytics content */
+.field-analytics-results.generating,
+.field-analytics-results .generating,
+.field-analytics-results .block.generating {
+    filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
 }
 .biodex-heatmap-wrap {
     width: 100%;
     margin-bottom: 0.85rem;
-    padding: 0.65rem;
-    background: #fff;
-    border: 2px solid var(--bd-line);
-    border-radius: 6px;
+    padding: 0.75rem;
+    background: #f4ede1 !important;
+    border: 1px solid #8a7a62;
+    border-radius: 10px;
+    box-shadow: none;
 }
 .biodex-heatmap-img {
     display: block;
@@ -961,38 +1082,42 @@ CUSTOM_CSS = """
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--bd-text);
+    color: #f2ede2;
     margin-bottom: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    background: #1e1812;
+    border-radius: 6px;
 }
 .biodex-species-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.88rem;
-    color: var(--bd-text) !important;
-    background: #fff;
-    border: 2px solid var(--bd-line);
-    border-radius: 6px;
+    font-size: 0.92rem;
+    color: #f2ede2 !important;
+    background: #1e1812 !important;
+    border: 1px solid var(--bd-border-strong);
+    border-radius: 10px;
     overflow: hidden;
 }
 .biodex-species-table th,
 .biodex-species-table td {
-    padding: 0.45rem 0.65rem !important;
-    border: 1px solid var(--bd-line) !important;
+    padding: 0.55rem 0.75rem !important;
+    border: 1px solid var(--bd-border) !important;
     color: var(--bd-text) !important;
     text-align: left;
 }
 .biodex-species-table th {
     background: var(--bd-sage-deep) !important;
+    color: var(--bd-earth) !important;
     font-weight: 800 !important;
     text-transform: uppercase;
-    font-size: 0.68rem !important;
-    letter-spacing: 0.05em !important;
+    font-size: 0.7rem !important;
+    letter-spacing: 0.06em !important;
 }
 .biodex-species-table tbody tr:nth-child(even) td {
-    background: var(--bd-sage) !important;
+    background: #2a2318 !important;
 }
 .biodex-species-table tbody tr:nth-child(odd) td {
-    background: #fff !important;
+    background: #1e1812 !important;
 }
 .biodex-page .field-table-wrap th {
     background: var(--bd-sage-deep) !important;
@@ -1002,20 +1127,33 @@ CUSTOM_CSS = """
     letter-spacing: 0.05em !important;
 }
 
-/* Collapsed sections — low visual weight */
+/* Collapsed sections — readable bars over the savanna background */
 .field-device .accordion {
-    border-top: 1px solid var(--bd-border) !important;
-    margin-top: 0.75rem !important;
+    background: #2a2318 !important;
+    border: 1px solid var(--bd-border-strong) !important;
+    border-radius: 10px !important;
+    margin-top: 0.55rem !important;
+    padding: 0.15rem 0.65rem !important;
+    box-shadow: 0 4px 14px rgba(8, 6, 2, 0.35);
 }
 .field-device .accordion > .label-wrap {
-    opacity: 0.85;
+    opacity: 1 !important;
+    background: transparent !important;
+    padding: 0.55rem 0.25rem !important;
 }
 .field-device .accordion > .label-wrap span {
-    font-size: 0.78rem !important;
-    font-weight: 600 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.06em !important;
-    color: var(--bd-text-muted) !important;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+    text-transform: none !important;
+    letter-spacing: 0.02em !important;
+    color: #f2ede2 !important;
+}
+.field-device .accordion .accordion-content,
+.field-device .accordion > .wrap {
+    background: #1e1812 !important;
+    border-radius: 0 0 8px 8px !important;
+    padding: 0.75rem 0.85rem 0.9rem !important;
+    margin-top: 0.15rem !important;
 }
 .field-export-row {
     padding: 0.25rem 0 0.5rem;
@@ -1034,8 +1172,8 @@ CUSTOM_CSS = """
     color: var(--bd-text-muted);
     padding: 1.5rem 0.5rem 0.35rem;
     margin-top: 1.35rem;
-    border-top: 1px solid rgba(201, 191, 176, 0.65);
-    background: linear-gradient(180deg, transparent 0%, rgba(245, 237, 227, 0.55) 100%);
+    border-top: 1px solid var(--bd-border);
+    background: linear-gradient(180deg, transparent 0%, rgba(46, 38, 27, 0.3) 100%);
     border-radius: 0 0 12px 12px;
 }
 .field-footer-tagline {
@@ -1050,15 +1188,17 @@ CUSTOM_CSS = """
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 0.76rem;
+    font-size: 0.78rem;
     font-weight: 500;
     letter-spacing: 0.02em;
     color: var(--bd-text);
-    padding: 0.28rem 0.62rem 0.28rem 0.48rem;
+    padding: 0.3rem 0.7rem 0.3rem 0.52rem;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.45);
-    border: 1px solid rgba(74, 124, 89, 0.18);
-    box-shadow: 0 1px 3px rgba(44, 51, 40, 0.06);
+    background: rgba(54, 44, 31, 0.5);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--bd-border);
+    box-shadow: inset 0 1px 0 rgba(255, 240, 214, 0.05);
 }
 .field-footer-badge-icon {
     display: inline-flex;
@@ -1124,7 +1264,7 @@ button.field-footer-chip {
     width: 1.35rem;
     height: 1.35rem;
     border-radius: 50%;
-    background: rgba(74, 124, 89, 0.1);
+    background: rgba(134, 193, 147, 0.16);
 }
 .field-footer-chip-icon svg {
     width: 0.85rem;
@@ -1134,8 +1274,8 @@ button.field-footer-chip {
     text-align: center;
     margin-top: 1.35rem;
     padding: 1.5rem 0.5rem 0.35rem;
-    border-top: 1px solid rgba(201, 191, 176, 0.65);
-    background: linear-gradient(180deg, transparent 0%, rgba(245, 237, 227, 0.55) 100%);
+    border-top: 1px solid var(--bd-border);
+    background: linear-gradient(180deg, transparent 0%, rgba(46, 38, 27, 0.3) 100%);
     border-radius: 0 0 12px 12px;
 }
 .field-footer-section .field-footer-tagline {
@@ -1169,8 +1309,8 @@ button.field-footer-chip {
     width: 1.35rem;
     height: 1.35rem;
     border-radius: 50%;
-    background: rgba(74, 124, 89, 0.1);
-    color: #3c4555;
+    background: rgba(134, 193, 147, 0.16);
+    color: var(--bd-moss);
     font-size: 0.62rem;
     font-weight: 700;
 }
@@ -1187,11 +1327,13 @@ button.field-footer-chip {
 .field-api-menu {
     max-width: 380px;
     margin: 0 auto 0.65rem !important;
-    padding: 0.7rem 0.8rem 0.75rem !important;
-    background: #fff !important;
-    border: 2px solid var(--bd-line) !important;
-    border-radius: 10px !important;
-    box-shadow: 0 8px 22px rgba(44, 51, 40, 0.12) !important;
+    padding: 0.85rem 0.95rem 0.9rem !important;
+    background: linear-gradient(180deg, rgba(46, 38, 27, 0.92) 0%, rgba(31, 26, 18, 0.94) 100%) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(130%) !important;
+    backdrop-filter: blur(18px) saturate(130%) !important;
+    border: 1px solid var(--bd-border-strong) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 18px 44px rgba(8, 6, 2, 0.5), inset 0 1px 0 rgba(255, 240, 214, 0.06) !important;
     text-align: left !important;
     gap: 0.35rem !important;
 }
@@ -1355,7 +1497,7 @@ def dark_mode_css() -> str:
 
 # Launch background. Prefer ``ui/tree_of_life_background.avif``, then ``.jpg``.
 # Inlined as a base64 data URI so it works locally, in Docker, and on deploy.
-_TREE_OVERLAY = "rgba(15, 23, 42, 0.55)"
+_TREE_OVERLAY = "rgba(26, 18, 8, 0.40)"
 _UI_DIR = Path(__file__).resolve().parent
 _BACKGROUND_CANDIDATES: tuple[tuple[Path, str], ...] = (
     (_UI_DIR / "tree_of_life_background.avif", "image/avif"),
