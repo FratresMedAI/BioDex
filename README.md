@@ -8,55 +8,40 @@
 [![CI](https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml/badge.svg)](https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml)
 [![Release](https://github.com/FratresMedAI/BioDex/actions/workflows/release.yml/badge.svg)](https://github.com/FratresMedAI/BioDex/actions/workflows/release.yml)
 
-Built for conservation research, field review, and defensive wildlife monitoring (Fratres / EcoSentinel integration hooks).
-
 ---
 
-## Install from PyPI (recommended)
+## Quick start — install and run
 
-**Step 1 — base package + UI (fast, stable):**
+**This is how you use BioDex.** Install from [PyPI](https://pypi.org/project/biodex/), then launch the web UI.
+
+**Requirements:** Python **3.10**, **3.11**, or **3.12** · internet on first run (models download once, ~500 MB)
+
+**Mac / Linux / Windows** — run these commands in order:
 
 ```bash
 pip install biodex
-pip install "biodex[ui,video,analytics]" --prefer-binary
-```
-
-**Step 2 — inference models (heavy; install after step 1):**
-
-```bash
+pip install "biodex[ui,video]" --prefer-binary
 pip install protobuf==3.20.1
 pip install "biodex[heavy]" --prefer-binary
+biodex-ui
 ```
 
-Then run the UI: `biodex-ui` → **http://127.0.0.1:7860**
+Open **http://127.0.0.1:7860** in your browser. Use the **Batch** tab to process a folder, or **Quick demo** for a fast preview.
 
-> **Windows:** always pass `--prefer-binary` on the heavy step to avoid slow or failed source builds (`cmake`, `onnx` compile errors).
-
-**Do not use `pip install "biodex[all]"` as your first install.** `[all]` is a conservative bundle (UI + video + analytics + dev tools) and **does not** include MegaDetector/SpeciesNet. For the full stack: `[ui,video,analytics]` + `[heavy]`.
-
----
-
-## Run locally (do this)
-
-**Mac / Linux**
+**Copy-paste one-liner:**
 
 ```bash
-git clone https://github.com/FratresMedAI/BioDex.git
-cd BioDex
-./run_biodex.sh
+pip install biodex && pip install "biodex[ui,video]" --prefer-binary && pip install protobuf==3.20.1 && pip install "biodex[heavy]" --prefer-binary && biodex-ui
 ```
 
-**Windows**
+| Tip | Detail |
+|-----|--------|
+| **Windows** | Always pass `--prefer-binary` on the heavy step to avoid slow or failed source builds (`cmake`, `onnx` compile errors). |
+| **Port in use** | The app tries **7860–7879** automatically if 7860 is busy. |
+| **Do not use** | `pip install "biodex[all]"` — it does **not** include MegaDetector/SpeciesNet. Use the commands above. |
+| **After first run** | Detection runs fully offline on your machine. |
 
-```bat
-git clone https://github.com/FratresMedAI/BioDex.git
-cd BioDex
-run_biodex.bat
-```
-
-Your browser opens **http://127.0.0.1:7860**. Use the **Batch** tab to process a folder, or **Quick demo** for a fast preview.
-
-First analysis downloads models once (~500 MB). After that, everything stays offline on your computer.
+Built for conservation research, field review, and defensive wildlife monitoring (Fratres / EcoSentinel integration hooks).
 
 ---
 
@@ -66,7 +51,7 @@ First analysis downloads models once (~500 MB). After that, everything stays off
 - **Batch performance** — chunking, cancel, ETA progress, optional `torch.compile`
 - **Video foundations** — frame sampling + timeline export (`biodex video`, requires `[video]` extra)
 - **Advanced exports** — Wildlife Insights, iNaturalist drafts, timelapse JSON, SQLite, EcoSentinel hook
-- **Tabbed UI** — Dashboard, Batch, Video, Analytics, Settings
+- **Tabbed UI** — Dashboard, Batch, Video, Settings
 - **Optional AI review (BYOK)** — per-frame LLM notes after batch runs (see below)
 - **Docker** — CPU and GPU images for deployment
 - **Release maturity** — stable API surface, strict typing/linting, and CI-gated quality
@@ -87,24 +72,17 @@ Core detection runs **fully offline** on your machine. AI review is an **optiona
 
 ---
 
-## Extras install matrix
+## PyPI extras (reference)
 
 | Extra | What it installs | When to use |
 |-------|------------------|-------------|
-| `ui` | Gradio web UI | **Default** — always |
-| `heavy` / `models` | MegaDetector, SpeciesNet, PyTorch, protobuf pin | After `ui`; required for detection |
-| `video` | OpenCV (headless, wheel-pinned) | Video tab / `biodex video` |
-| `analytics` | matplotlib, seaborn | Analytics tab heatmaps |
+| `ui` | Gradio web UI | **Required** — included in quick start |
+| `video` | OpenCV (headless, wheel-pinned) | **Recommended** — Video tab / `biodex video` |
+| `heavy` / `models` | MegaDetector, SpeciesNet, PyTorch, protobuf pin | **Required** — detection and species ID |
+| `analytics` | matplotlib, seaborn | Library/API only (not used by the UI) |
 | `edge` | onnxruntime stubs | Experimental edge deploy |
 | `dev` | pytest, ruff, mypy | Contributors |
-| `all` | ui + video + analytics + dev + desktop + edge | **No inference stack** — not a one-shot full install |
-
-**From source (git clone):** use `run_biodex.bat` / `run_biodex.sh` — they run `scripts/install_biodex.*`, which installs the heavy stack in a protobuf-safe order.
-
-```bash
-pip install -e ".[ui,heavy]" --prefer-binary    # after scripts/install_biodex.sh, or manual protobuf pin
-pip install -e ".[video,analytics]" --prefer-binary
-```
+| `all` | ui + video + analytics + dev + desktop + edge | **No inference stack** — not a substitute for the quick start |
 
 ---
 
@@ -116,9 +94,10 @@ pip install -e ".[video,analytics]" --prefer-binary
 pip uninstall biodex megadetector speciesnet onnx onnx2torch -y
 pip cache purge
 pip install biodex
-pip install "biodex[ui,video,analytics]" --prefer-binary
+pip install "biodex[ui,video]" --prefer-binary
 pip install protobuf==3.20.1
 pip install "biodex[heavy]" --prefer-binary
+biodex-ui
 ```
 
 On Windows, use a fresh virtual environment when possible:
@@ -128,18 +107,20 @@ python -m venv .venv
 .venv\Scripts\activate
 ```
 
+Then run the **Quick start** commands again.
+
 ### `cmake` / `onnx` build errors on Windows
 
 SpeciesNet pulls `onnx` transitively. If pip tries to **build from source**:
 
 1. Use `--prefer-binary` on every BioDex extra install.
 2. Pin protobuf first: `pip install protobuf==3.20.1`
-3. Install `[heavy]` in a **separate** command after `[ui]`.
-4. If it still fails, clone the repo and use `run_biodex.bat` (uses the ordered install script).
+3. Install `[heavy]` in a **separate** command after `[ui,video]`.
+4. If it still fails, create a fresh venv and repeat the quick start from scratch.
 
 ### Slow dependency resolution
 
-Avoid `biodex[all,heavy]` in one command on Windows. Install in the two-step order above.
+Avoid `biodex[all,heavy]` in one command on Windows. Install in the four-step order from **Quick start**.
 
 ---
 
@@ -170,14 +151,25 @@ docker build -t biodex:gpu -f Dockerfile.gpu .
 
 ---
 
-## Developers
+## Developers (git clone)
+
+End users should use **Quick start** (PyPI) above. Clone this repo only if you are contributing or hacking on BioDex locally.
 
 ```bash
-pip install -e ".[ui,models,dev]"
+git clone https://github.com/FratresMedAI/BioDex.git
+cd BioDex
+# Mac/Linux: ./run_biodex.sh
+# Windows:    run_biodex.bat
+```
+
+Or manual setup:
+
+```bash
+pip install -e ".[ui,heavy,dev]" --prefer-binary
+pre-commit install
 pytest tests/ -v -m "not slow"
 ruff check core app.py ui
 mypy core app.py ui
-pre-commit install   # optional
 ```
 
 See [CHANGELOG.md](CHANGELOG.md), [docs/roadmap.md](docs/roadmap.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md).
