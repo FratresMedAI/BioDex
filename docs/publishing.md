@@ -1,30 +1,8 @@
 # Publishing BioDex to PyPI
 
-The `Release` workflow (`.github/workflows/release.yml`) builds the wheel + sdist on every
+The `Publish` workflow (`.github/workflows/publish.yml`) builds the wheel + sdist on every
 `v*` tag and publishes to PyPI using **Trusted Publishing** (OIDC) — no API tokens stored in
 the repo.
-
-## Why the v1.0.0 publish job failed
-
-The first `v1.0.0` run built artifacts successfully but the `publish` job failed with:
-
-```
-Trusted publishing exchange failure:
-* `invalid-publisher`: valid token, but no corresponding publisher
-  (Publisher with matching claims was not found)
-```
-
-This is **not** a code or workflow bug. It means PyPI does not yet have a Trusted Publisher
-registered that matches these OIDC claims from the workflow:
-
-| Claim | Value |
-|-------|-------|
-| repository | `Fratres-X-Natura/BioDex` |
-| workflow | `release.yml` |
-| environment | `pypi` |
-
-Until that registration exists, the publish step cannot mint an upload token. The build and
-GitHub Release steps are unaffected (artifacts are already attached to the GitHub Release).
 
 ## Verify Trusted Publisher settings (checklist)
 
@@ -35,8 +13,8 @@ On **PyPI → biodex → Publishing**, the active GitHub publisher must match th
 |-------|----------------|----------------|
 | **Owner** | `Fratres-X-Natura` | Old org `FratresMedAI` |
 | **Repository name** | `BioDex` | `biodex` (wrong casing — must match GitHub repo name) |
-| **Workflow name** | `release.yml` | `publish.yml` (wrong file — only `release.yml` exists) |
-| **Environment name** | `pypi` | `release` (that is the *workflow filename*, not the environment) |
+| **Workflow name** | `publish.yml` | `release.yml` (old filename) |
+| **Environment name** | `pypi` | `release` (that is not the environment name) |
 
 GitHub side (already configured for this repo):
 
@@ -48,74 +26,45 @@ GitHub side (already configured for this repo):
 If any field is wrong, the `publish` job fails with `invalid-publisher`. Remove the bad
 publisher on PyPI and re-add with the table above.
 
-## One-time fix: register the Trusted Publisher on PyPI
+Print the expected values locally:
 
-Do this once with the PyPI account that should own the `biodex` project.
+```bash
+python scripts/verify_pypi_publisher.py
+```
 
-### If the project does NOT exist on PyPI yet (pending publisher)
-
-1. Sign in at https://pypi.org and go to **Your account → Publishing**.
-2. Under **Add a new pending publisher**, fill in exactly:
-   - **PyPI Project Name:** `biodex`
-   - **Owner:** `Fratres-X-Natura`
-   - **Repository name:** `BioDex`
-   - **Workflow name:** `release.yml`
-   - **Environment name:** `pypi`
-3. Save. The first successful tag push will create the project and publish.
-
-### If the project already exists on PyPI
+## Register the Trusted Publisher on PyPI
 
 1. Go to `https://pypi.org/manage/project/biodex/settings/publishing/`.
-2. **Add a new publisher** with the same five values listed above.
+2. **Add a new publisher** (or remove and re-add if correcting a mistake):
 
-> The values must match the workflow exactly. The environment is `pypi` because the
-> `publish` job declares `environment: pypi` in `.github/workflows/release.yml`.
+   - **Owner:** `Fratres-X-Natura`
+   - **Repository name:** `BioDex`
+   - **Workflow name:** `publish.yml`
+   - **Environment name:** `pypi`
 
-## GitHub side (optional but recommended)
-
-Create a GitHub Environment named `pypi` so deployments are gated/audited:
-
-1. Repo **Settings → Environments → New environment → `pypi`**.
-2. Optionally add required reviewers or a tag-pattern deployment branch rule (`v*`).
+> The environment is `pypi` because the `publish` job declares `environment: pypi` in
+> `.github/workflows/publish.yml`.
 
 ## Enable the publish job
 
-The `publish` job is **gated** so release runs stay green before PyPI is wired up. It only runs
-when **both** are true:
+The `publish` job runs when **both** are true:
 
 1. The push is a `v*` tag, and
 2. The repository variable `PYPI_PUBLISH` is set to `true`.
 
-Set the variable after registering the Trusted Publisher:
-
-- GitHub repo **Settings → Secrets and variables → Actions → Variables → New variable**
-  - **Name:** `PYPI_PUBLISH`  **Value:** `true`
-- …or via CLI: `gh variable set PYPI_PUBLISH --body true`
-
-Until then the job shows as **skipped** (grey), not failed (red).
-
-## Re-run the publish after registering
+## Re-run publish after fixing PyPI
 
 The workflow uses `skip-existing: true`, so it is safe to re-run.
 
 ```bash
-# Re-run just the failed release workflow for the existing tag:
-gh run rerun <run-id>            # find the id with: gh run list --workflow Release
-
-# …or cut a patch release that re-triggers the whole pipeline:
-#   bump BIODEX_VERSION in core/types.py, commit, then:
-git tag -a v1.0.1 -m "BioDex v1.0.1" && git push origin v1.0.1
+gh run list --workflow publish.yml --limit 1
+gh run rerun <run-id>
 ```
 
-## Manual publish fallback (if you don't want OIDC)
-
-You can publish from a local build with an API token instead:
+## Manual publish fallback
 
 ```bash
 python -m build
 twine check dist/*
-twine upload dist/*        # prompts for __token__ / pypi-... API token
+twine upload dist/*
 ```
-
-Use this only as a stopgap; Trusted Publishing is the supported path and keeps no secrets in
-the repo.

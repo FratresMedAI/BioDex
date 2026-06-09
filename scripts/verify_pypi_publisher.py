@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+WORKFLOW = ROOT / ".github" / "workflows" / "publish.yml"
 
 
 def main() -> None:
@@ -32,8 +32,8 @@ def main() -> None:
     print("Actions variable:     PYPI_PUBLISH = true")
     print()
     print("Common mistakes:")
-    print("  - Workflow publish.yml  (actual file is release.yml)")
     print("  - Repository biodex     (actual repo is BioDex — case matters)")
+    print("  - Workflow release.yml  (actual file is publish.yml)")
     print("  - Environment release   (actual environment is pypi)")
 
 

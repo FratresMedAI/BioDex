@@ -1,4 +1,4 @@
-name: Release
+name: Publish
 
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    # Trusted Publishing on PyPI must match: Fratres-X-Natura/BioDex, release.yml, env pypi
+    # Trusted Publishing on PyPI must match: Fratres-X-Natura/BioDex, publish.yml, env pypi
     #   https://pypi.org/manage/project/biodex/settings/publishing/  (see docs/publishing.md)
     # This job stays SKIPPED (not failed) until you set the repository variable
     #   PYPI_PUBLISH = true   (Settings -> Secrets and variables -> Actions -> Variables)
