@@ -30,7 +30,7 @@ jobs:
         run: pytest tests/ -v -m "not slow"
 
       - name: Verify Gradio app builds
-        run: python -c "from app import build_app; build_app(); print('app ok')"
+        run: python -c "from core.ui_app import build_app; build_app(); print('app ok')"
 
   lint:
     runs-on: ubuntu-latest

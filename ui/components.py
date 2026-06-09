@@ -267,7 +267,7 @@ def probe_speciesnet(*, active: bool) -> str:
     except ImportError:
         return _species_status_html(
             "error",
-            "SpeciesNet not installed — run: pip install -e \".[models,ui]\"",
+            "SpeciesNet not installed — run: pip install \"biodex[heavy]\" --prefer-binary",
         )
     try:
         from core.classifier import is_classifier_loaded

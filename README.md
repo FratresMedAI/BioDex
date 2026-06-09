@@ -12,6 +12,30 @@ Built for conservation research, field review, and defensive wildlife monitoring
 
 ---
 
+## Install from PyPI (recommended)
+
+**Step 1 — base package + UI (fast, stable):**
+
+```bash
+pip install biodex
+pip install "biodex[ui,video,analytics]" --prefer-binary
+```
+
+**Step 2 — inference models (heavy; install after step 1):**
+
+```bash
+pip install protobuf==3.20.1
+pip install "biodex[heavy]" --prefer-binary
+```
+
+Then run the UI: `biodex-ui` → **http://127.0.0.1:7860**
+
+> **Windows:** always pass `--prefer-binary` on the heavy step to avoid slow or failed source builds (`cmake`, `onnx` compile errors).
+
+**Do not use `pip install "biodex[all]"` as your first install.** `[all]` is a conservative bundle (UI + video + analytics + dev tools) and **does not** include MegaDetector/SpeciesNet. For the full stack: `[ui,video,analytics]` + `[heavy]`.
+
+---
+
 ## Run locally (do this)
 
 **Mac / Linux**
@@ -65,13 +89,57 @@ Core detection runs **fully offline** on your machine. AI review is an **optiona
 
 ## Extras install matrix
 
+| Extra | What it installs | When to use |
+|-------|------------------|-------------|
+| `ui` | Gradio web UI | **Default** — always |
+| `heavy` / `models` | MegaDetector, SpeciesNet, PyTorch, protobuf pin | After `ui`; required for detection |
+| `video` | OpenCV (headless, wheel-pinned) | Video tab / `biodex video` |
+| `analytics` | matplotlib, seaborn | Analytics tab heatmaps |
+| `edge` | onnxruntime stubs | Experimental edge deploy |
+| `dev` | pytest, ruff, mypy | Contributors |
+| `all` | ui + video + analytics + dev + desktop + edge | **No inference stack** — not a one-shot full install |
+
+**From source (git clone):** use `run_biodex.bat` / `run_biodex.sh` — they run `scripts/install_biodex.*`, which installs the heavy stack in a protobuf-safe order.
+
 ```bash
-pip install -e ".[ui,models]"           # Web UI + inference (default)
-pip install -e ".[video]"               # OpenCV video support
-pip install -e ".[analytics]"           # Heatmaps + diversity metrics
-pip install -e ".[edge]"                # ONNX stubs (future edge deploy)
-pip install -e ".[all]"                 # Everything
+pip install -e ".[ui,heavy]" --prefer-binary    # after scripts/install_biodex.sh, or manual protobuf pin
+pip install -e ".[video,analytics]" --prefer-binary
 ```
+
+---
+
+## Installation troubleshooting
+
+### Clean install (upgrading from 0.5.0 or fixing a broken env)
+
+```bash
+pip uninstall biodex megadetector speciesnet onnx onnx2torch -y
+pip cache purge
+pip install biodex
+pip install "biodex[ui,video,analytics]" --prefer-binary
+pip install protobuf==3.20.1
+pip install "biodex[heavy]" --prefer-binary
+```
+
+On Windows, use a fresh virtual environment when possible:
+
+```bat
+python -m venv .venv
+.venv\Scripts\activate
+```
+
+### `cmake` / `onnx` build errors on Windows
+
+SpeciesNet pulls `onnx` transitively. If pip tries to **build from source**:
+
+1. Use `--prefer-binary` on every BioDex extra install.
+2. Pin protobuf first: `pip install protobuf==3.20.1`
+3. Install `[heavy]` in a **separate** command after `[ui]`.
+4. If it still fails, clone the repo and use `run_biodex.bat` (uses the ordered install script).
+
+### Slow dependency resolution
+
+Avoid `biodex[all,heavy]` in one command on Windows. Install in the two-step order above.
 
 ---
 

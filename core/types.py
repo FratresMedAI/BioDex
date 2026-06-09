@@ -10,7 +10,7 @@ from pathlib import Path
 
 from PIL import Image
 
-BIODEX_VERSION = "1.0.1"
+BIODEX_VERSION = "1.0.2"
 MODEL_ID = "MDV5A"
 
 # MegaDetector category IDs.

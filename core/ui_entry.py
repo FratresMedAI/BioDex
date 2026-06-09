@@ -5,7 +5,7 @@ from __future__ import annotations
 
 def main() -> None:
     """Launch the Gradio web application."""
-    from app import launch_app
+    from core.ui_app import launch_app
 
     launch_app()
 

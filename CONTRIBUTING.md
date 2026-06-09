@@ -5,7 +5,7 @@ Thanks for helping improve BioDex.
 ## Development setup
 
 ```bash
-pip install -e ".[ui,models,dev]"
+pip install -e ".[ui,heavy,dev]" --prefer-binary
 pre-commit install
 ```
 
@@ -15,7 +15,7 @@ pre-commit install
 ruff check core app.py ui desktop tests
 mypy core app.py ui
 pytest tests/ -v -m "not slow"
-python -c "from app import build_app; build_app(); print('app ok')"
+python -c "from core.ui_app import build_app; build_app(); print('app ok')"
 ```
 
 ## Scope and standards

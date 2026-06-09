@@ -2,6 +2,17 @@
 
 All notable changes to BioDex are documented here.
 
+## [1.0.2] — 2026-06-09
+
+### Fixed
+
+- **`biodex-ui` crash on pip install** — moved Gradio app to `core.ui_app` so a stale top-level `app.py` in `site-packages` can no longer shadow the real UI (fixes `build_settings_tab() takes 0 positional arguments but 1 was given`)
+- Wheel no longer installs a root-level `app.py`; UI assets (`favicon`, background) are bundled under `ui/`
+
+### Changed
+
+- Restructured optional extras: `[heavy]` / `[models]` for inference; `[all]` no longer pulls MegaDetector/SpeciesNet (see README install guide)
+
 ## [1.0.1] — 2026-06-09
 
 ### Added

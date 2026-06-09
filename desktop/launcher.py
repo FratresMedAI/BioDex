@@ -91,7 +91,7 @@ def main() -> None:
     _open_browser_when_ready(host, port)
 
     try:
-        from app import launch_app
+        from core.ui_app import launch_app
 
         launch_app()
     except Exception:
