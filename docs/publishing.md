@@ -26,6 +26,28 @@ registered that matches these OIDC claims from the workflow:
 Until that registration exists, the publish step cannot mint an upload token. The build and
 GitHub Release steps are unaffected (artifacts are already attached to the GitHub Release).
 
+## Verify Trusted Publisher settings (checklist)
+
+On **PyPI → biodex → Publishing**, the active GitHub publisher must match the workflow
+**exactly**:
+
+| Field | Required value | Common mistake |
+|-------|----------------|----------------|
+| **Owner** | `Fratres-X-Natura` | Old org `FratresMedAI` |
+| **Repository name** | `BioDex` | Wrong casing or fork name |
+| **Workflow name** | `release.yml` | Typo in filename |
+| **Environment name** | `pypi` | Using `release` (that is the *workflow file*, not the environment) |
+
+GitHub side (already configured for this repo):
+
+| Item | Required value |
+|------|----------------|
+| Actions variable | `PYPI_PUBLISH` = `true` |
+| GitHub Environment | `pypi` (repo **Settings → Environments**) |
+
+If any field is wrong, the `publish` job fails with `invalid-publisher`. Remove the bad
+publisher on PyPI and re-add with the table above.
+
 ## One-time fix: register the Trusted Publisher on PyPI
 
 Do this once with the PyPI account that should own the `biodex` project.
@@ -47,7 +69,7 @@ Do this once with the PyPI account that should own the `biodex` project.
 2. **Add a new publisher** with the same five values listed above.
 
 > The values must match the workflow exactly. The environment is `pypi` because the
-> `publish` job declares `environment: pypi`.
+> `publish` job declares `environment: pypi` in `.github/workflows/release.yml`.
 
 ## GitHub side (optional but recommended)
 
