@@ -34,9 +34,9 @@ On **PyPI → biodex → Publishing**, the active GitHub publisher must match th
 | Field | Required value | Common mistake |
 |-------|----------------|----------------|
 | **Owner** | `Fratres-X-Natura` | Old org `FratresMedAI` |
-| **Repository name** | `BioDex` | Wrong casing or fork name |
-| **Workflow name** | `release.yml` | Typo in filename |
-| **Environment name** | `pypi` | Using `release` (that is the *workflow file*, not the environment) |
+| **Repository name** | `BioDex` | `biodex` (wrong casing — must match GitHub repo name) |
+| **Workflow name** | `release.yml` | `publish.yml` (wrong file — only `release.yml` exists) |
+| **Environment name** | `pypi` | `release` (that is the *workflow filename*, not the environment) |
 
 GitHub side (already configured for this repo):
 
