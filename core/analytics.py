@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import math
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +11,14 @@ from core.exif_utils import extract_metadata, parse_exif_timestamp
 from core.types import BatchResult
 
 logger = logging.getLogger(__name__)
+
+_ANALYTICS_CACHE = Path.home() / ".cache" / "biodex" / "analytics"
+
+
+def analytics_cache_dir() -> Path:
+    """Directory for analytics PNG exports (must stay under Gradio ``allowed_paths``)."""
+    _ANALYTICS_CACHE.mkdir(parents=True, exist_ok=True)
+    return _ANALYTICS_CACHE
 
 
 def _require_analytics() -> None:
@@ -96,10 +103,10 @@ def activity_heatmap(
         spine.set_linewidth(1.0)
     fig.tight_layout()
 
-    tmp = Path(tempfile.mkstemp(suffix=".png", prefix="biodex_heatmap_")[1])
-    fig.savefig(tmp, dpi=140, facecolor=fig.get_facecolor(), edgecolor="none")
+    out_path = analytics_cache_dir() / "activity_heatmap.png"
+    fig.savefig(out_path, dpi=120, facecolor=fig.get_facecolor(), edgecolor="none")
     plt.close(fig)
-    return tmp
+    return out_path
 
 
 def population_trend_stub(batch_results_over_time: list[BatchResult]) -> dict[str, Any]:

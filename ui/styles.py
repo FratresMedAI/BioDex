@@ -864,9 +864,11 @@ CUSTOM_CSS = """
     margin-top: 0.4rem;
 }
 .field-ai-review-hint {
-    font-size: 0.74rem;
-    color: var(--bd-text-muted);
+    font-size: 0.78rem;
+    color: #e0a95e !important;
+    font-weight: 600;
     line-height: 1.3;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
 }
 .field-ai-review {
     margin-top: 0.5rem;
@@ -1050,13 +1052,15 @@ CUSTOM_CSS = """
 .field-analytics-results .html-container {
     background: transparent !important;
 }
-/* Stop Gradio's "processing" shimmer from blurring analytics content */
-.field-analytics-results.generating,
-.field-analytics-results .generating,
-.field-analytics-results .block.generating {
+.field-analytics-heatmap .image-container,
+.field-analytics-heatmap .image-frame {
+    background: #f4ede1 !important;
+    border: 1px solid #8a7a62 !important;
+    border-radius: 10px !important;
+}
+.field-analytics-heatmap img {
+    opacity: 1 !important;
     filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
 }
 .biodex-heatmap-wrap {
     width: 100%;
@@ -1127,29 +1131,72 @@ CUSTOM_CSS = """
     letter-spacing: 0.05em !important;
 }
 
-/* Collapsed sections — readable bars over the savanna background */
+/* Batch accordions — warm brown labels (Folder upload, Export, Spot check) */
+.biodex-page .block.field-batch-accordion,
+.biodex-page .block.field-batch-accordion.padded,
+.biodex-page .field-batch-accordion,
+.biodex-page .accordion,
 .field-device .accordion {
-    background: #2a2318 !important;
-    border: 1px solid var(--bd-border-strong) !important;
+    background: linear-gradient(180deg, #3d2e1f 0%, #2a1f14 100%) !important;
+    border: 1px solid rgba(201, 152, 88, 0.55) !important;
     border-radius: 10px !important;
     margin-top: 0.55rem !important;
-    padding: 0.15rem 0.65rem !important;
-    box-shadow: 0 4px 14px rgba(8, 6, 2, 0.35);
+    padding: 0.1rem 0.65rem !important;
+    box-shadow: 0 4px 14px rgba(8, 6, 2, 0.45) !important;
 }
-.field-device .accordion > .label-wrap {
+.biodex-page .block.field-batch-accordion .label-wrap {
+    background: linear-gradient(180deg, #4a3826 0%, #3d2e1f 100%) !important;
+    border-radius: 8px !important;
+    width: 100% !important;
+}
+.biodex-page .field-batch-accordion > .label-wrap,
+.biodex-page .field-batch-accordion .label-wrap,
+.biodex-page .accordion > .label-wrap,
+.biodex-page .accordion .label-wrap,
+.field-device .accordion > .label-wrap,
+.field-device .accordion .label-wrap {
     opacity: 1 !important;
     background: transparent !important;
     padding: 0.55rem 0.25rem !important;
+    border: none !important;
 }
-.field-device .accordion > .label-wrap span {
-    font-size: 0.82rem !important;
+.biodex-page .field-batch-accordion .label-wrap span,
+.biodex-page .field-batch-accordion .label-wrap p,
+.biodex-page .field-batch-accordion button,
+.biodex-page .field-batch-accordion summary,
+.biodex-page .accordion .label-wrap span,
+.biodex-page .accordion .label-wrap p,
+.biodex-page .accordion > button,
+.biodex-page .accordion summary,
+.field-device .accordion .label-wrap span,
+.field-device .accordion .label-wrap p,
+.field-device .accordion > button,
+.field-device .accordion summary {
+    color: #e0a95e !important;
+    -webkit-text-fill-color: #e0a95e !important;
+    font-size: 0.9rem !important;
     font-weight: 700 !important;
     text-transform: none !important;
     letter-spacing: 0.02em !important;
-    color: #f2ede2 !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75) !important;
+}
+.biodex-page .field-batch-accordion:hover .label-wrap span,
+.biodex-page .accordion:hover .label-wrap span,
+.field-device .accordion:hover .label-wrap span {
+    color: #f0c070 !important;
+    -webkit-text-fill-color: #f0c070 !important;
+}
+.biodex-page .field-batch-accordion svg,
+.biodex-page .accordion svg,
+.field-device .accordion svg {
+    color: #e0a95e !important;
+    stroke: #e0a95e !important;
+    fill: #e0a95e !important;
 }
 .field-device .accordion .accordion-content,
-.field-device .accordion > .wrap {
+.field-device .accordion > .wrap,
+.biodex-page .field-batch-accordion .accordion-content,
+.biodex-page .field-batch-accordion > .wrap {
     background: #1e1812 !important;
     border-radius: 0 0 8px 8px !important;
     padding: 0.75rem 0.85rem 0.9rem !important;

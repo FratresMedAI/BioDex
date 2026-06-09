@@ -99,7 +99,7 @@ def build_batch_tab(
         widgets["review_panel"] = review_panel
         widgets["selected_frame_index"] = gr.State(None)
 
-        with gr.Accordion("Folder upload & threshold", open=False):
+        with gr.Accordion("Folder upload & threshold", open=False, elem_classes=["field-batch-accordion"]):
             widgets["batch_files"] = gr.File(
                 label="Camera-trap folder",
                 file_count="directory",
@@ -114,7 +114,7 @@ def build_batch_tab(
                 label="Confidence threshold",
             )
 
-        with gr.Accordion("Export results", open=False):
+        with gr.Accordion("Export results", open=False, elem_classes=["field-batch-accordion"]):
             with gr.Row(elem_classes=["field-export-row"]):
                 widgets["batch_csv_btn"] = gr.DownloadButton("Master CSV", interactive=False)
                 widgets["batch_json_btn"] = gr.DownloadButton("Master JSON", interactive=False)
@@ -124,7 +124,7 @@ def build_batch_tab(
                 widgets["batch_inat_btn"] = gr.DownloadButton("iNaturalist draft", interactive=False)
                 widgets["batch_eco_btn"] = gr.DownloadButton("EcoSentinel JSON", interactive=False)
 
-        with gr.Accordion("Single-image spot check", open=False):
+        with gr.Accordion("Single-image spot check", open=False, elem_classes=["field-batch-accordion"]):
             widgets["input_image"] = gr.Image(label="Upload one image", type="pil", height=240)
             widgets["analyze_one_btn"] = gr.Button("Analyze", variant="secondary")
             with gr.Row():
@@ -166,12 +166,18 @@ def build_analytics_tab(last_batch: gr.State) -> dict[str, Any]:
             "Species diversity and activity patterns from your last batch run.",
             elem_classes=["field-analytics-intro"],
         )
-        widgets["analytics_refresh"] = gr.Button("Refresh from last batch")
+        widgets["analytics_refresh"] = gr.Button("Refresh from last batch", variant="secondary")
         widgets["diversity_html"] = gr.HTML('<p class="biodex-analytics-empty">Run a batch first.</p>')
-        with gr.Column(visible=False, elem_classes=["field-analytics-results"]) as analytics_results_panel:
-            widgets["heatmap_image"] = gr.HTML("")
+        with gr.Column(elem_classes=["field-analytics-results"]):
+            widgets["heatmap_image"] = gr.Image(
+                label="Activity heatmap",
+                type="filepath",
+                interactive=False,
+                height=320,
+                buttons=[],
+                elem_classes=["field-analytics-heatmap"],
+            )
             widgets["species_chart"] = gr.HTML("")
-        widgets["analytics_results_panel"] = analytics_results_panel
         widgets["last_batch"] = last_batch
     return widgets
 

@@ -579,14 +579,18 @@ def analyze_video_ui(
         raise gr.Error(str(exc)) from exc
 
 
-def compute_analytics(batch_state: BatchResult | None) -> tuple[str, str, str, Any]:
+def compute_analytics(
+    batch_state: BatchResult | None,
+    progress: Any = gr.Progress(),  # noqa: B008
+) -> tuple[str, str | None, str]:
+    progress(0, desc="Starting analytics…")
     if batch_state is None or not batch_state.results:
         return (
             '<p class="biodex-analytics-empty">Run a batch first.</p>',
+            None,
             "",
-            "",
-            _review_panel_update(visible=False),
         )
+    progress(0.15, desc="Computing diversity indices…")
     diversity = compute_diversity_index(batch_state.species_counts)
     div_html = (
         '<div class="biodex-diversity-stats">'
@@ -595,29 +599,19 @@ def compute_analytics(batch_state: BatchResult | None) -> tuple[str, str, str, A
         f'<span><strong>Richness</strong> {int(diversity["richness"])}</span>'
         "</div>"
     )
+    heatmap_file: str | None = None
+    progress(0.45, desc="Rendering activity heatmap…")
     try:
-        heatmap_path = activity_heatmap(batch_state)
-        heatmap_html = _heatmap_html(heatmap_path)
+        heatmap_file = str(activity_heatmap(batch_state))
     except RuntimeError:
-        heatmap_html = '<p class="biodex-analytics-empty">Install analytics extras: pip install biodex[analytics]</p>'
-    return (
-        div_html,
-        heatmap_html,
-        _species_chart_html(batch_state),
-        _review_panel_update(visible=True),
-    )
-
-
-def _heatmap_html(path: Path) -> str:
-    import base64
-
-    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-    return (
-        '<div class="biodex-heatmap-wrap">'
-        f'<img class="biodex-heatmap-img" src="data:image/png;base64,{encoded}" '
-        'alt="Activity heatmap by hour of day"/>'
-        "</div>"
-    )
+        div_html += (
+            '<p class="biodex-analytics-empty">'
+            "Install analytics extras: pip install biodex[analytics]</p>"
+        )
+    progress(0.85, desc="Building species table…")
+    species_html = _species_chart_html(batch_state)
+    progress(1.0, desc="Analytics ready")
+    return div_html, heatmap_file, species_html
 
 
 def _species_chart_html(batch: BatchResult) -> str:
