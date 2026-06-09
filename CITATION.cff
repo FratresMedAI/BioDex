@@ -7,7 +7,7 @@ authors:
     given-names: Team
 repository-code: "https://github.com/FratresMedAI/BioDex"
 license: MIT
-version: "1.0.2"
+version: "1.0.3"
 date-released: 2026-06-08
 abstract: >
   BioDex is a local-first wildlife camera-trap analysis tool using MegaDetector

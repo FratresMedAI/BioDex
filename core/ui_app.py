@@ -311,11 +311,26 @@ def _start_model_warmup(*, species: bool = False) -> None:
     threading.Thread(target=_run, daemon=True, name="biodex-warmup").start()
 
 
+def _find_open_port(host: str, preferred: int, attempts: int = 20) -> int:
+    """Return the first open port at/after ``preferred`` (so a leftover BioDex doesn't block startup)."""
+    import socket
+
+    probe_host = "127.0.0.1" if host in ("0.0.0.0", "") else host
+    for candidate in range(preferred, preferred + attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            if sock.connect_ex((probe_host, candidate)) != 0:
+                return candidate
+    return preferred
+
+
 def launch_app() -> None:
     """Build and launch the Gradio UI (console entry: ``biodex-ui``)."""
     settings = get_settings()
     host = settings.host
-    port = settings.port
+    port = _find_open_port(host, settings.port)
+    if port != settings.port:
+        print(f"Port {settings.port} busy — using {port} instead.")
     css = CUSTOM_CSS + tree_background_css()
     print(f"BioDex v{BIODEX_VERSION} at http://{host}:{port}")
     print("Open the Batch tab to process a folder, or try Quick demo.")
@@ -331,6 +346,7 @@ def launch_app() -> None:
         "css": css,
         "auth": settings.gradio_auth,
         "show_error": True,
+        "inbrowser": True,
         "allowed_paths": [str(biodex_cache), str(LILA_CACHE_DIR), str(TREE_BACKGROUND_PATH.parent)],
     }
     if FAVICON_PATH.is_file():

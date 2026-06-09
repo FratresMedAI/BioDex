@@ -2,6 +2,13 @@
 
 All notable changes to BioDex are documented here.
 
+## [1.0.3] — 2026-06-09
+
+### Fixed
+
+- **`biodex-ui` no longer crashes when port 7860 is in use** — auto-selects the next free port (7860–7879) instead of raising `OSError`
+- UI now opens the browser automatically on launch (`inbrowser=True`)
+
 ## [1.0.2] — 2026-06-09
 
 ### Fixed
