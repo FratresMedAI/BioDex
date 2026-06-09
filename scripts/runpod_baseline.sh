@@ -4,7 +4,7 @@ LOG=/tmp/biodex-baseline.log
 exec > "$LOG" 2>&1
 
 pkill -f "pip install|app.py|runpod_diagnostics" 2>/dev/null || true
-rm -rf ~/BioDex && git clone https://github.com/FratresMedAI/BioDex.git && cd ~/BioDex
+rm -rf ~/BioDex && git clone https://github.com/Fratres-X-Natura/BioDex.git && cd ~/BioDex
 
 python -m venv .venv && source .venv/bin/activate
 pip install -U pip

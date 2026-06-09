@@ -70,6 +70,6 @@ top of MegaDetector/SpeciesNet. What formats or integrations would make this par
 
 ## Links
 
-- GitHub: https://github.com/FratresMedAI/BioDex
-- Release: https://github.com/FratresMedAI/BioDex/releases/tag/v1.0.0
+- GitHub: https://github.com/Fratres-X-Natura/BioDex
+- Release: https://github.com/Fratres-X-Natura/BioDex/releases/tag/v1.0.0
 - PyPI: https://pypi.org/project/biodex/ (pending Trusted Publisher setup — see docs/publishing.md)

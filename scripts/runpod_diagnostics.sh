@@ -3,7 +3,7 @@ set -x
 exec > /tmp/biodex-diagnostics.log 2>&1
 
 cd ~ && rm -rf BioDex || true
-git clone https://github.com/FratresMedAI/BioDex.git
+git clone https://github.com/Fratres-X-Natura/BioDex.git
 cd BioDex
 
 python -m venv .venv

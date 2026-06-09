@@ -3,9 +3,8 @@ title: BioDex
 message: "If you use BioDex in research, please cite this software."
 type: software
 authors:
-  - family-names: FratresMedAI
-    given-names: Team
-repository-code: "https://github.com/FratresMedAI/BioDex"
+  - name: "Fratres X Natura"
+repository-code: "https://github.com/Fratres-X-Natura/BioDex"
 license: MIT
 version: "1.0.3"
 date-released: 2026-06-08

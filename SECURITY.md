@@ -8,7 +8,7 @@ Security updates are provided for the latest stable release line (currently `1.x
 
 Please report vulnerabilities privately by opening a security advisory on GitHub:
 
-- [GitHub Security Advisories](https://github.com/FratresMedAI/BioDex/security/advisories)
+- [GitHub Security Advisories](https://github.com/Fratres-X-Natura/BioDex/security/advisories)
 
 Include:
 

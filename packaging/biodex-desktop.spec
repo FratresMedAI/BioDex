@@ -121,7 +121,7 @@ if sys.platform == "darwin":
         coll,
         name="BioDex.app",
         icon=None,
-        bundle_identifier="com.fratresmedai.biodex",
+        bundle_identifier="com.fratrexnatura.biodex",
         info_plist={
             "CFBundleDisplayName": "BioDex",
             "CFBundleName": "BioDex",

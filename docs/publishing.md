@@ -19,7 +19,7 @@ registered that matches these OIDC claims from the workflow:
 
 | Claim | Value |
 |-------|-------|
-| repository | `FratresMedAI/BioDex` |
+| repository | `Fratres-X-Natura/BioDex` |
 | workflow | `release.yml` |
 | environment | `pypi` |
 
@@ -35,7 +35,7 @@ Do this once with the PyPI account that should own the `biodex` project.
 1. Sign in at https://pypi.org and go to **Your account → Publishing**.
 2. Under **Add a new pending publisher**, fill in exactly:
    - **PyPI Project Name:** `biodex`
-   - **Owner:** `FratresMedAI`
+   - **Owner:** `Fratres-X-Natura`
    - **Repository name:** `BioDex`
    - **Workflow name:** `release.yml`
    - **Environment name:** `pypi`

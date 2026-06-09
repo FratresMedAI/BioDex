@@ -23,7 +23,7 @@ Everything runs on your hardware. No uploads. No per-image fees. MIT-licensed an
 We built this for conservation biologists, ecologists, and defensive ecological monitoring teams
 who need reproducible results on data that can't leave the building.
 
-⭐ GitHub: https://github.com/FratresMedAI/BioDex
+⭐ GitHub: https://github.com/Fratres-X-Natura/BioDex
 
 If you work in biodiversity monitoring or build on MegaDetector/SpeciesNet, I'd love your feedback.
 
@@ -47,7 +47,7 @@ Strict quality gates (ruff, mypy --strict, pytest) pass on every commit, and it'
 The design goal: production wildlife models that run entirely offline, in a codebase small
 enough to read in an afternoon.
 
-Repo + release notes: https://github.com/FratresMedAI/BioDex/releases/tag/v1.0.0
+Repo + release notes: https://github.com/Fratres-X-Natura/BioDex/releases/tag/v1.0.0
 
 #OpenSource #Python #ComputerVision #Conservation #AI
 
@@ -64,7 +64,7 @@ machine.
 
 Open source, MIT-licensed, built for impact in conservation and defensive ecological monitoring.
 
-🔗 https://github.com/FratresMedAI/BioDex
+🔗 https://github.com/Fratres-X-Natura/BioDex
 
 #Conservation #ResponsibleAI #Biodiversity #OpenSource
 
