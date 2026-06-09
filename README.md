@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/FratresMedAI/BioDex/main/docs/images/hero.png" alt="BioDex Field Review — local AI for wildlife camera traps" width="920">
+  <img src="https://raw.githubusercontent.com/Fratres-X-Natura/BioDex/main/docs/images/hero.png" alt="BioDex Field Review — local AI for wildlife camera traps" width="920">
 </p>
 
 <h1 align="center">BioDex</h1>
@@ -10,11 +10,15 @@
 </p>
 
 <p align="center">
+  <sub><strong>Note:</strong> This repository lives under the <a href="https://github.com/Fratres-X-Natura">Fratres-X-Natura</a> account as the dedicated home for wildlife and defensive monitoring tooling.</sub>
+</p>
+
+<p align="center">
   <a href="https://pypi.org/project/biodex/"><img src="https://img.shields.io/pypi/v/biodex.svg" alt="PyPI"></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10--3.12-blue.svg" alt="Python 3.10–3.12"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"></a>
   <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.3-brightgreen.svg" alt="v1.0.3"></a>
-  <a href="https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml"><img src="https://github.com/FratresMedAI/BioDex/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Fratres-X-Natura/BioDex/actions/workflows/ci.yml"><img src="https://github.com/Fratres-X-Natura/BioDex/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 <p align="center">
@@ -22,7 +26,7 @@
   <a href="#why-biodex">Why BioDex</a> ·
   <a href="#optional-ai-review-byok">AI review</a> ·
   <a href="#batch-cli">CLI</a> ·
-  <a href="#developers-git-clone">Developers</a>
+  <a href="#developers">Developers</a>
 </p>
 
 ---
@@ -178,26 +182,33 @@ GPU image: `docker build -t biodex:gpu -f Dockerfile.gpu .`
 
 ---
 
-## Developers (git clone)
+## Developers
 
-End users should use **Quick start** (PyPI) above. Clone this repo only if you are contributing or hacking on BioDex locally.
+Clone the repository:
 
 ```bash
-git clone https://github.com/FratresMedAI/BioDex.git
+git clone https://github.com/Fratres-X-Natura/BioDex.git
 cd BioDex
-# Mac/Linux: ./run_biodex.sh
-# Windows:    run_biodex.bat
 ```
+
+Install in editable mode with development dependencies:
 
 ```bash
 pip install -e ".[ui,heavy,dev]" --prefer-binary
 pre-commit install
-pytest tests/ -v -m "not slow"
-ruff check core app.py ui
-mypy core app.py ui
 ```
 
-[CHANGELOG.md](CHANGELOG.md) · [docs/roadmap.md](docs/roadmap.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
+Run tests and linting:
+
+```bash
+pytest tests/ -v -m "not slow"
+ruff check .
+mypy core ui
+```
+
+For full contribution guidelines see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+[CHANGELOG.md](CHANGELOG.md) · [docs/roadmap.md](docs/roadmap.md) · [SECURITY.md](SECURITY.md)
 
 ---
 
