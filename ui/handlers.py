@@ -12,7 +12,6 @@ from typing import Any, cast
 
 import gradio as gr
 import pandas as pd
-from core.analytics import activity_heatmap, compute_diversity_index
 from core.batch import run_batch
 from core.detector import analyze_single_image, warmup_models
 from core.exports import (
@@ -78,8 +77,8 @@ Finds animals, people, and vehicles with bounding boxes and confidence scores.
 **Step 2 — Species classification (optional)**  
 SpeciesNet suggests likely species on animal crops. Borderline predictions show alternatives.
 
-**Step 3 — Batch / Video / Analytics**  
-Process folders, sample video frames, and explore species diversity locally.
+**Step 3 — Batch / Video**
+Process folders and sample video frames locally.
 
 **First run:** Model weights download once (~500 MB total), then analysis works offline.
 """
@@ -579,56 +578,6 @@ def analyze_video_ui(
         raise gr.Error(str(exc)) from exc
 
 
-def compute_analytics(
-    batch_state: BatchResult | None,
-    progress: Any = gr.Progress(),  # noqa: B008
-) -> tuple[str, str | None, str]:
-    progress(0, desc="Starting analytics…")
-    if batch_state is None or not batch_state.results:
-        return (
-            '<p class="biodex-analytics-empty">Run a batch first.</p>',
-            None,
-            "",
-        )
-    progress(0.15, desc="Computing diversity indices…")
-    diversity = compute_diversity_index(batch_state.species_counts)
-    div_html = (
-        '<div class="biodex-diversity-stats">'
-        f'<span><strong>Shannon</strong> {diversity["shannon"]}</span>'
-        f'<span><strong>Simpson</strong> {diversity["simpson"]}</span>'
-        f'<span><strong>Richness</strong> {int(diversity["richness"])}</span>'
-        "</div>"
-    )
-    heatmap_file: str | None = None
-    progress(0.45, desc="Rendering activity heatmap…")
-    try:
-        heatmap_file = str(activity_heatmap(batch_state))
-    except RuntimeError:
-        div_html += (
-            '<p class="biodex-analytics-empty">'
-            "Install analytics extras: pip install biodex[analytics]</p>"
-        )
-    progress(0.85, desc="Building species table…")
-    species_html = _species_chart_html(batch_state)
-    progress(1.0, desc="Analytics ready")
-    return div_html, heatmap_file, species_html
-
-
-def _species_chart_html(batch: BatchResult) -> str:
-    if not batch.species_counts:
-        return '<p class="biodex-analytics-empty">No species data yet.</p>'
-    rows = "".join(
-        f"<tr><td>{name}</td><td>{count}</td></tr>"
-        for name, count in list(batch.species_counts.items())[:15]
-    )
-    return (
-        '<div class="biodex-species-card">'
-        '<div class="biodex-species-card-title">Species counts</div>'
-        f'<table class="biodex-species-table"><thead><tr><th>Species</th><th>Count</th></tr></thead>'
-        f"<tbody>{rows}</tbody></table></div>"
-    )
-
-
 def apply_settings(threshold: float, geofence: str) -> tuple[Any, ...]:
     save_settings(threshold=threshold, geofence_region=geofence)
     return (
@@ -741,7 +690,6 @@ __all__ = [
     "test_llm_settings",
     "toggle_api_menu",
     "clear_batch_review",
-    "compute_analytics",
     "dashboard_stats",
     "load_lila_cache",
     "refresh_species_status",

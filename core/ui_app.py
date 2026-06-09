@@ -23,7 +23,6 @@ from ui.handlers import (
     apply_settings,
     clear_batch_review,
     clear_llm_settings,
-    compute_analytics,
     load_lila_cache,
     on_llm_provider_change,
     refresh_species_status,
@@ -36,7 +35,6 @@ from ui.handlers import (
 )
 from ui.styles import APP_THEME, CUSTOM_CSS, tree_background_css
 from ui.tabs import (
-    build_analytics_tab,
     build_batch_tab,
     build_dashboard_tab,
     build_settings_tab,
@@ -71,7 +69,6 @@ def build_app() -> gr.Blocks:
                 build_dashboard_tab(last_batch)
                 batch_w = build_batch_tab(settings, review_state, batch_paths_state, last_batch)
                 video_w = build_video_tab()
-                analytics_w = build_analytics_tab(last_batch)
                 settings_w = build_settings_tab()
 
             with gr.Column(elem_classes=["field-footer-section"]):
@@ -140,11 +137,6 @@ def build_app() -> gr.Blocks:
             fn=load_lila_cache,
             outputs=[batch_w["batch_paths_state"], batch_w["batch_status"]],
         )
-        _analytics_outputs = [
-            analytics_w["diversity_html"],
-            analytics_w["heatmap_image"],
-            analytics_w["species_chart"],
-        ]
         batch_w["quick_demo_btn"].click(
             fn=run_quick_demo,
             inputs=[batch_w["batch_files"], batch_w["batch_paths_state"], batch_w["threshold"]],
@@ -168,11 +160,6 @@ def build_app() -> gr.Blocks:
                 last_batch,
             ],
             show_progress="minimal",
-        ).then(
-            fn=compute_analytics,
-            inputs=[last_batch],
-            outputs=_analytics_outputs,
-            show_progress="hidden",
         )
         batch_w["batch_btn"].click(
             fn=analyze_batch,
@@ -202,11 +189,6 @@ def build_app() -> gr.Blocks:
                 last_batch,
             ],
             show_progress="minimal",
-        ).then(
-            fn=compute_analytics,
-            inputs=[last_batch],
-            outputs=_analytics_outputs,
-            show_progress="hidden",
         )
         for _reset_btn in (batch_w["batch_btn"], batch_w["quick_demo_btn"], batch_w["clear_btn"]):
             _reset_btn.click(
@@ -287,13 +269,6 @@ def build_app() -> gr.Blocks:
         )
         video_w["video_cancel_btn"].click(fn=request_cancel, outputs=[video_w["video_status"]])
 
-        analytics_w["analytics_refresh"].click(
-            fn=compute_analytics,
-            inputs=[last_batch],
-            outputs=_analytics_outputs,
-            show_progress="full",
-        )
-
         settings_w["settings_save"].click(
             fn=apply_settings,
             inputs=[
@@ -322,24 +297,6 @@ def _start_model_warmup(*, species: bool = False) -> None:
     threading.Thread(target=_run, daemon=True, name="biodex-warmup").start()
 
 
-def _start_analytics_warmup() -> None:
-    """Import matplotlib/seaborn once so Analytics refresh is instant on first click."""
-
-    def _run() -> None:
-        try:
-            import matplotlib
-
-            matplotlib.use("Agg", force=True)
-            import matplotlib.pyplot as plt  # noqa: F401
-            import seaborn as sns  # noqa: F401
-
-            logger.info("Analytics stack warmup complete.")
-        except Exception as exc:
-            logger.warning("Analytics warmup failed: %s", exc)
-
-    threading.Thread(target=_run, daemon=True, name="biodex-analytics-warmup").start()
-
-
 def _find_open_port(host: str, preferred: int, attempts: int = 20) -> int:
     """Return the first open port at/after ``preferred`` (so a leftover BioDex doesn't block startup)."""
     import socket
@@ -364,13 +321,10 @@ def launch_app() -> None:
     print(f"BioDex v{BIODEX_VERSION} at http://{host}:{port}")
     print("Open the Batch tab to process a folder, or try Quick demo.")
     _start_model_warmup(species=True)
-    _start_analytics_warmup()
     app = build_app()
     if settings.enable_queue:
-        app.queue(default_concurrency_limit=4)
+        app.queue(default_concurrency_limit=2)
     biodex_cache = Path.home() / ".cache" / "biodex"
-    analytics_cache = biodex_cache / "analytics"
-    analytics_cache.mkdir(parents=True, exist_ok=True)
     launch_kwargs: dict[str, Any] = {
         "server_name": host,
         "server_port": port,
@@ -379,12 +333,7 @@ def launch_app() -> None:
         "auth": settings.gradio_auth,
         "show_error": True,
         "inbrowser": True,
-        "allowed_paths": [
-            str(biodex_cache),
-            str(analytics_cache),
-            str(LILA_CACHE_DIR),
-            str(TREE_BACKGROUND_PATH.parent),
-        ],
+        "allowed_paths": [str(biodex_cache), str(LILA_CACHE_DIR), str(TREE_BACKGROUND_PATH.parent)],
     }
     if FAVICON_PATH.is_file():
         launch_kwargs["favicon_path"] = str(FAVICON_PATH)

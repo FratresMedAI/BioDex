@@ -159,29 +159,6 @@ def build_video_tab() -> dict[str, Any]:
     return widgets
 
 
-def build_analytics_tab(last_batch: gr.State) -> dict[str, Any]:
-    widgets: dict[str, Any] = {}
-    with gr.Tab("Analytics", id="analytics"):
-        gr.Markdown(
-            "Species diversity and activity patterns from your last batch run.",
-            elem_classes=["field-analytics-intro"],
-        )
-        widgets["analytics_refresh"] = gr.Button("Refresh from last batch", variant="secondary")
-        widgets["diversity_html"] = gr.HTML('<p class="biodex-analytics-empty">Run a batch first.</p>')
-        with gr.Column(elem_classes=["field-analytics-results"]):
-            widgets["heatmap_image"] = gr.Image(
-                label="Activity heatmap",
-                type="filepath",
-                interactive=False,
-                height=320,
-                buttons=[],
-                elem_classes=["field-analytics-heatmap"],
-            )
-            widgets["species_chart"] = gr.HTML("")
-        widgets["last_batch"] = last_batch
-    return widgets
-
-
 def build_settings_tab() -> dict[str, Any]:
     widgets: dict[str, Any] = {}
     stored = load_settings()
@@ -210,7 +187,6 @@ def build_shell(demo: gr.Blocks) -> gr.State:
 
 
 __all__ = [
-    "build_analytics_tab",
     "build_batch_tab",
     "build_dashboard_tab",
     "build_settings_tab",
