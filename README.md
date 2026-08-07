@@ -1,3 +1,16 @@
+## Maturity
+
+| Field | Value |
+|---|---|
+| **Status** | Research prototype |
+| **Maturity** | Low |
+| **Field-ready** | No — not clinical, not field-certified |
+| **Last reviewed** | 2026-08-07 |
+
+Biodiversity platform scaffold for Fratres X Natura. Research only.
+
+---
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/Fratres-X-Natura/BioDex/main/docs/images/hero.png" alt="BioDex Field Review — local AI for wildlife camera traps" width="920">
 </p>
