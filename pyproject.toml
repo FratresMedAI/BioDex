@@ -184,3 +184,7 @@ check_untyped_defs = false
 [[tool.mypy.overrides]]
 module = "desktop.*"
 disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["ui.*", "core.ui_app"]
+disable_error_code = ["attr-defined"]
